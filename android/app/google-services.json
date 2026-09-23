@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1023054501122",
+    "project_id": "rently-545da",
+    "storage_bucket": "rently-545da.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1023054501122:android:1b69af5e8e9af6676a1e1b",
+        "android_client_info": {
+          "package_name": "com.example.rently_capstone_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9Yvs86Gu__u0ofrKLmGPHh4NxnW6hImo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1023054501122:android:10d4827fbcfd6fe96a1e1b",
+        "android_client_info": {
+          "package_name": "com.example.rently_cse2100_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9Yvs86Gu__u0ofrKLmGPHh4NxnW6hImo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

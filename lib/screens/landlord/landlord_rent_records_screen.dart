@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/rent_record_model.dart';
 import '../../models/user_model.dart';
+import '../../services/notice_service.dart';
 import '../../services/rent_record_service.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/empty_state.dart';
@@ -283,6 +284,49 @@ class LandlordRentRecordsScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          if (rec.isUnpaid)
+                            TextButton.icon(
+                              onPressed: () async {
+                                try {
+                                  await NoticeService().createNotice(
+                                    title: 'Rent Reminder for ${rec.month}',
+                                    message: 'Reminder: Your rent of ৳${rec.amount} for "${rec.apartmentTitle ?? "your apartment"}" is due. Please clear your dues.',
+                                    authorId: currentUser.uid,
+                                    authorName: currentUser.name,
+                                    authorRole: 'landlord',
+                                    isPublic: false,
+                                    targetTenantId: rec.tenantId,
+                                    apartmentId: rec.apartmentId,
+                                  );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Rent reminder notice sent to tenant!'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Failed to send reminder: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.notifications_active_outlined, color: Colors.blue, size: 16),
+                              label: const Text(
+                                'Send Reminder',
+                                style: TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
                           TextButton.icon(
                             onPressed: () {
                               final newStatus = rec.isPaid ? 'unpaid' : 'paid';

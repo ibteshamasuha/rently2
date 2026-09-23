@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../models/apartment_model.dart';
+import '../../models/notice_model.dart';
+import '../../models/rental_request_model.dart';
 import '../../models/user_model.dart';
+import '../../services/apartment_service.dart';
+import '../../services/notice_service.dart';
+import '../../services/rental_request_service.dart';
 import '../../theme/app_theme.dart';
 import 'apartment_details_screen.dart';
 import 'apartment_listings_screen.dart';
@@ -14,6 +19,10 @@ class TenantDashboardRoleScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final requestService = RentalRequestService();
+    final noticeService = NoticeService();
+    final apartmentService = ApartmentService();
+
     return Scaffold(
       backgroundColor: GenXPalette.whippedCream,
       body: SafeArea(
@@ -69,47 +78,50 @@ class TenantDashboardRoleScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Active Rental Card (Picture 1 Screen 15)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: GenXPalette.cameoWhite),
-                  boxShadow: [
-                    BoxShadow(
-                      color: GenXPalette.midnightBlue.withValues(alpha: 0.05),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
+              // Dynamic Active Rental Card (Picture 1 Screen 15)
+              StreamBuilder<List<RentalRequestModel>>(
+                stream: requestService.getTenantRequests(currentUser.uid),
+                builder: (context, snapshot) {
+                  final requests = snapshot.data ?? [];
+                  final approvedList = requests.where((r) => r.status == 'approved').toList();
+
+                  if (approvedList.isEmpty) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: GenXPalette.cameoWhite),
+                        boxShadow: [
+                          BoxShadow(
+                            color: GenXPalette.midnightBlue.withValues(alpha: 0.05),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Status Badge: Active Rental
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: GenXPalette.vineLeaf.withValues(alpha: 0.12),
+                              color: GenXPalette.midnightBlue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Text(
-                              'Active Rental',
+                              'Rental Status',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.bold,
-                                color: GenXPalette.vineLeaf,
+                                color: GenXPalette.midnightBlue,
                               ),
                             ),
                           ),
                           const SizedBox(height: 10),
                           const Text(
-                            '2 Bedroom Apartment',
+                            'No Active Rental',
                             style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w900,
@@ -118,7 +130,7 @@ class TenantDashboardRoleScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            'Rajshahi',
+                            'Find and request your next apartment now.',
                             style: TextStyle(fontSize: 13, color: GenXPalette.textMuted),
                           ),
                           const SizedBox(height: 14),
@@ -127,28 +139,14 @@ class TenantDashboardRoleScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ApartmentDetailsScreen(
-                                    apartment: ApartmentModel(
-                                      id: 'active_apartment',
-                                      title: '2 Bedroom Apartment',
-                                      location: 'Rajshahi',
-                                      rent: 15000,
-                                      status: 'available',
-                                      description: 'A beautiful 2 bedroom apartment near RUET.',
-                                      landlordId: 'landlord_1',
-                                      bedrooms: 2,
-                                      bathrooms: 1,
-                                      areaSqFt: 900,
-                                    ),
-                                    currentUser: currentUser,
-                                  ),
+                                  builder: (_) => ApartmentListingsScreen(currentUser: currentUser),
                                 ),
                               );
                             },
                             child: Row(
                               children: const [
                                 Text(
-                                  'View Details',
+                                  'Explore Available Apartments',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
@@ -162,63 +160,187 @@ class TenantDashboardRoleScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.network(
-                        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=300&q=80',
-                        width: 90,
-                        height: 90,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 90,
-                          height: 90,
-                          color: GenXPalette.cameoWhite,
-                          child: const Icon(Icons.home_rounded, color: GenXPalette.midnightBlue),
+                    );
+                  }
+
+                  final activeRental = approvedList.first;
+                  final aptTitle = activeRental.apartmentTitle ?? 'Rented Apartment';
+
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: GenXPalette.cameoWhite),
+                      boxShadow: [
+                        BoxShadow(
+                          color: GenXPalette.midnightBlue.withValues(alpha: 0.05),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Status Badge: Active Rental
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: GenXPalette.vineLeaf.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  'Active Rental',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: GenXPalette.vineLeaf,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                aptTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                  color: GenXPalette.textDark,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Lease Approved',
+                                style: const TextStyle(fontSize: 13, color: GenXPalette.textMuted),
+                              ),
+                              const SizedBox(height: 14),
+                              GestureDetector(
+                                onTap: () async {
+                                  // Fetch apartment details if possible
+                                  try {
+                                    final apt = await apartmentService.getApartmentById(activeRental.apartmentId);
+                                    if (apt != null && context.mounted) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ApartmentDetailsScreen(
+                                            apartment: apt,
+                                            currentUser: currentUser,
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                  } catch (_) {}
+
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ApartmentDetailsScreen(
+                                          apartment: ApartmentModel(
+                                            id: activeRental.apartmentId,
+                                            title: aptTitle,
+                                            location: 'Rented Residence',
+                                            rent: 0,
+                                            status: 'rented',
+                                            description: 'Your currently rented apartment.',
+                                            landlordId: activeRental.landlordId,
+                                            bedrooms: 2,
+                                            bathrooms: 1,
+                                            areaSqFt: 850,
+                                          ),
+                                          currentUser: currentUser,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Row(
+                                  children: const [
+                                    Text(
+                                      'View Details',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: GenXPalette.midnightBlue,
+                                      ),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Icon(Icons.arrow_forward_rounded, size: 14, color: GenXPalette.midnightBlue),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            width: 90,
+                            height: 90,
+                            color: GenXPalette.cameoWhite,
+                            child: const Icon(Icons.home_rounded, color: GenXPalette.midnightBlue, size: 36),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
 
               const SizedBox(height: 24),
 
-              // Stat Cards Grid: 1 Pending Requests, 2 Past Requests, 3 Notices (Screen 15)
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      number: '1',
-                      label: 'Pending Requests',
-                      color: const Color(0xFFEA580C),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => MyRentalRequestsScreen(currentUser: currentUser),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      number: '2',
-                      label: 'Past Requests',
-                      color: GenXPalette.midnightBlue,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => MyRentalRequestsScreen(currentUser: currentUser),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+              // Dynamic Stat Cards Grid: Pending Requests, Past Requests, Notices (Screen 15)
+              StreamBuilder<List<RentalRequestModel>>(
+                stream: requestService.getTenantRequests(currentUser.uid),
+                builder: (context, reqSnapshot) {
+                  final requests = reqSnapshot.data ?? [];
+                  final pendingCount = requests.where((r) => r.status == 'pending').length.toString();
+                  final pastCount = requests.where((r) => r.status != 'pending').length.toString();
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          number: pendingCount,
+                          label: 'Pending Requests',
+                          color: const Color(0xFFEA580C),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyRentalRequestsScreen(currentUser: currentUser),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          number: pastCount,
+                          label: 'Past Requests',
+                          color: GenXPalette.midnightBlue,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyRentalRequestsScreen(currentUser: currentUser),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
 
               const SizedBox(height: 12),
@@ -226,14 +348,20 @@ class TenantDashboardRoleScreen extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: _buildStatCard(
-                      number: '3',
-                      label: 'Notices',
-                      color: const Color(0xFF8B5CF6),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const TenantNoticesScreen()),
+                    child: StreamBuilder<List<NoticeModel>>(
+                      stream: noticeService.getTenantNotices(currentUser.uid),
+                      builder: (context, notSnapshot) {
+                        final noticesCount = (notSnapshot.data?.length ?? 0).toString();
+                        return _buildStatCard(
+                          number: noticesCount,
+                          label: 'Notices',
+                          color: const Color(0xFF8B5CF6),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => TenantNoticesScreen(currentUser: currentUser)),
+                            );
+                          },
                         );
                       },
                     ),

@@ -7,6 +7,9 @@ class NoticeModel {
   final String authorId;
   final String? authorName;
   final String? authorRole;
+  final bool isPublic;
+  final String? targetTenantId;
+  final String? apartmentId;
   final DateTime? createdAt;
 
   NoticeModel({
@@ -16,6 +19,9 @@ class NoticeModel {
     required this.authorId,
     this.authorName,
     this.authorRole,
+    this.isPublic = true,
+    this.targetTenantId,
+    this.apartmentId,
     this.createdAt,
   });
 
@@ -35,6 +41,9 @@ class NoticeModel {
       authorId: data['authorId'] ?? '',
       authorName: data['authorName'],
       authorRole: data['authorRole'],
+      isPublic: data['isPublic'] ?? true,
+      targetTenantId: data['targetTenantId'],
+      apartmentId: data['apartmentId'],
       createdAt: parsedDate,
     );
   }
@@ -44,6 +53,9 @@ class NoticeModel {
       'title': title,
       'message': message,
       'authorId': authorId,
+      'isPublic': isPublic,
+      if (targetTenantId != null) 'targetTenantId': targetTenantId,
+      if (apartmentId != null) 'apartmentId': apartmentId,
       if (authorName != null) 'authorName': authorName,
       if (authorRole != null) 'authorRole': authorRole,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),

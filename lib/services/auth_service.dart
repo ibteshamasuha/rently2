@@ -119,6 +119,11 @@ class AuthService {
       final cleanName = name.trim();
       final cleanRole = role.trim().toLowerCase();
 
+      final emailRegex = RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$");
+      if (!emailRegex.hasMatch(cleanEmail)) {
+        throw 'Please enter a syntactically valid email address (e.g. name@domain.com).';
+      }
+
       if (!['tenant', 'landlord', 'both'].contains(cleanRole)) {
         throw 'Invalid role selected: $role';
       }
@@ -132,6 +137,13 @@ class AuthService {
       if (user == null) throw 'Registration failed. Please try again.';
 
       await user.updateDisplayName(cleanName);
+
+      // Trigger Firebase email verification (Requirement 9)
+      try {
+        await user.sendEmailVerification();
+      } catch (_) {
+        // Do not fail signup if verification email delivery fails temporarily
+      }
 
       final newUser = UserModel(
         uid: user.uid,

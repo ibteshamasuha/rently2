@@ -142,7 +142,7 @@ class LandlordNoticesScreen extends StatelessWidget {
         label: const Text('Post Notice'),
       ),
       body: StreamBuilder<List<NoticeModel>>(
-        stream: noticeService.getNotices(),
+        stream: noticeService.getLandlordNotices(currentUser.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

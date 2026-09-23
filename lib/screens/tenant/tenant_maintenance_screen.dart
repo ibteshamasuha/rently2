@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/maintenance_service.dart';
@@ -61,13 +62,41 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      String targetAptId = 'active_apartment';
+      String targetLandlordId = 'landlord_system';
+      String targetAptTitle = 'Apartment';
+
+      // 1. Try to find tenant's approved lease
+      final approvedQuery = await FirebaseFirestore.instance
+          .collection('rentalRequests')
+          .where('tenantId', isEqualTo: widget.currentUser.uid)
+          .where('status', isEqualTo: 'approved')
+          .limit(1)
+          .get();
+
+      if (approvedQuery.docs.isNotEmpty) {
+        final approvedData = approvedQuery.docs.first.data();
+        targetAptId = approvedData['apartmentId'] ?? targetAptId;
+        targetLandlordId = approvedData['landlordId'] ?? targetLandlordId;
+        targetAptTitle = approvedData['apartmentTitle'] ?? targetAptTitle;
+      } else {
+        // 2. Otherwise find the first available apartment
+        final apts = await FirebaseFirestore.instance.collection('apartments').limit(1).get();
+        if (apts.docs.isNotEmpty) {
+          final aptData = apts.docs.first.data();
+          targetAptId = apts.docs.first.id;
+          targetLandlordId = aptData['landlordId'] ?? targetLandlordId;
+          targetAptTitle = aptData['title'] ?? targetAptTitle;
+        }
+      }
+
       await _maintenanceService.createTicket(
         tenantId: widget.currentUser.uid,
-        landlordId: 'landlord_system',
-        apartmentId: 'active_apartment',
+        landlordId: targetLandlordId,
+        apartmentId: targetAptId,
         title: '$_selectedIssueType Issue',
         description: _descriptionController.text.trim(),
-        apartmentTitle: '2 Bedroom Apartment',
+        apartmentTitle: targetAptTitle,
         tenantName: widget.currentUser.name,
       );
 

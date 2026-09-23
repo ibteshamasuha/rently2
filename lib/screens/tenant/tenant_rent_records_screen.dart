@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../models/rent_record_model.dart';
 import '../../models/user_model.dart';
+import '../../services/rent_record_service.dart';
 import '../../theme/app_theme.dart';
 
 class TenantRentRecordsScreen extends StatefulWidget {
@@ -13,8 +16,9 @@ class TenantRentRecordsScreen extends StatefulWidget {
 
 class _TenantRentRecordsScreenState extends State<TenantRentRecordsScreen> {
   String _selectedTab = 'All'; // 'All', 'Paid', 'Pending'
+  final RentRecordService _recordService = RentRecordService();
 
-  final List<RentRecordItem> _records = const [
+  final List<RentRecordItem> _fallbackRecords = const [
     RentRecordItem(
       monthYear: 'October 2026',
       amount: '৳15,000',
@@ -49,11 +53,7 @@ class _TenantRentRecordsScreenState extends State<TenantRentRecordsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _records.where((r) {
-      if (_selectedTab == 'Paid') return r.isPaid;
-      if (_selectedTab == 'Pending') return !r.isPaid;
-      return true;
-    }).toList();
+    final currencyFormatter = NumberFormat.currency(symbol: '৳', decimalDigits: 0);
 
     return Scaffold(
       backgroundColor: GenXPalette.whippedCream,
@@ -66,105 +66,142 @@ class _TenantRentRecordsScreenState extends State<TenantRentRecordsScreen> {
               )
             : null,
       ),
-      body: Column(
-        children: [
-          // Filter Tabs matching Picture 1 Screen 12: [All], [Paid], [Pending]
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-            child: Row(
-              children: [
-                _buildFilterTab('All'),
-                const SizedBox(width: 8),
-                _buildFilterTab('Paid'),
-                const SizedBox(width: 8),
-                _buildFilterTab('Pending'),
-              ],
-            ),
-          ),
+      body: StreamBuilder<List<RentRecordModel>>(
+        stream: _recordService.getTenantRentRecords(widget.currentUser.uid),
+        builder: (context, snapshot) {
+          final liveRecords = snapshot.data ?? [];
+          List<RentRecordItem> items;
 
-          const SizedBox(height: 6),
+          if (liveRecords.isNotEmpty) {
+            items = liveRecords.map((r) {
+              final dateStr = r.isPaid
+                  ? (r.paidAt != null ? 'Paid on ${DateFormat('MMM d, y').format(r.paidAt!)}' : 'Paid')
+                  : 'Due for ${r.month}';
+              return RentRecordItem(
+                monthYear: r.month,
+                amount: currencyFormatter.format(r.amount),
+                paidDate: dateStr,
+                isPaid: r.isPaid,
+              );
+            }).toList();
+          } else {
+            items = _fallbackRecords;
+          }
 
-          // List of Rent Records
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final record = filtered[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: GenXPalette.cameoWhite),
-                    boxShadow: [
-                      BoxShadow(
-                        color: GenXPalette.midnightBlue.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            record.monthYear,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: GenXPalette.textDark,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            record.amount,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: GenXPalette.midnightBlue,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            record.paidDate,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: GenXPalette.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
+          final filtered = items.where((r) {
+            if (_selectedTab == 'Paid') return r.isPaid;
+            if (_selectedTab == 'Pending') return !r.isPaid;
+            return true;
+          }).toList();
 
-                      // Status Badge (Paid / Pending)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: record.isPaid
-                              ? GenXPalette.vineLeaf.withValues(alpha: 0.12)
-                              : GenXPalette.warning.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
+          return Column(
+            children: [
+              // Filter Tabs matching Picture 1 Screen 12: [All], [Paid], [Pending]
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                child: Row(
+                  children: [
+                    _buildFilterTab('All'),
+                    const SizedBox(width: 8),
+                    _buildFilterTab('Paid'),
+                    const SizedBox(width: 8),
+                    _buildFilterTab('Pending'),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // List of Rent Records
+              Expanded(
+                child: filtered.isEmpty
+                    ? Center(
                         child: Text(
-                          record.isPaid ? 'Paid' : 'Pending',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: record.isPaid ? GenXPalette.vineLeaf : GenXPalette.warning,
-                          ),
+                          'No $_selectedTab records found.',
+                          style: const TextStyle(color: GenXPalette.textMuted, fontSize: 14),
                         ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final record = filtered[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: GenXPalette.cameoWhite),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: GenXPalette.midnightBlue.withValues(alpha: 0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      record.monthYear,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: GenXPalette.textDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      record.amount,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: GenXPalette.midnightBlue,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      record.paidDate,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: GenXPalette.textMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                // Status Badge (Paid / Pending)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: record.isPaid
+                                        ? GenXPalette.vineLeaf.withValues(alpha: 0.12)
+                                        : GenXPalette.warning.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    record.isPaid ? 'Paid' : 'Pending',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: record.isPaid ? GenXPalette.vineLeaf : GenXPalette.warning,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -1,10 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../models/notice_model.dart';
+import '../../models/user_model.dart';
 import '../../services/notice_service.dart';
 import '../../theme/app_theme.dart';
 
 class TenantNoticesScreen extends StatelessWidget {
-  const TenantNoticesScreen({super.key});
+  final UserModel? currentUser;
+
+  const TenantNoticesScreen({super.key, this.currentUser});
 
   final List<NoticeItemData> _defaultNotices = const [
     NoticeItemData(
@@ -48,6 +52,7 @@ class TenantNoticesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final noticeService = NoticeService();
+    final tenantId = currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
       backgroundColor: GenXPalette.whippedCream,
@@ -61,7 +66,7 @@ class TenantNoticesScreen extends StatelessWidget {
             : null,
       ),
       body: StreamBuilder<List<NoticeModel>>(
-        stream: noticeService.getNotices(),
+        stream: noticeService.getTenantNotices(tenantId),
         builder: (context, snapshot) {
           // If Firestore has notices, we display them; otherwise fallback to the Picture 1 demo list
           final firestoreNotices = snapshot.data ?? [];

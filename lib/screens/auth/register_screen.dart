@@ -232,7 +232,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) return 'Enter your email';
-                      if (!val.contains('@')) return 'Enter a valid email';
+                      final emailRegex = RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$");
+                      if (!emailRegex.hasMatch(val.trim())) return 'Enter a syntactically valid email (e.g. name@domain.com)';
                       return null;
                     },
                   ),

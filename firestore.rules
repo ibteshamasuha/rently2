@@ -142,7 +142,13 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
         && (
-          (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+          (
+            userRole() in ["landlord", "both"]
+            && resource.data.landlordId == request.auth.uid
+            && request.resource.data.landlordId == resource.data.landlordId
+            && request.resource.data.tenantId == resource.data.tenantId
+            && request.resource.data.apartmentId == resource.data.apartmentId
+          )
           || isAdmin()
         );
 
@@ -157,7 +163,14 @@ service cloud.firestore {
 
     match /notices/{noticeId} {
 
-      allow read: if isSignedIn();
+      // Landlords read notices they authored; tenants read public or targeted notices; admin reads all
+      allow read: if isSignedIn()
+        && (
+          resource.data.authorId == request.auth.uid
+          || resource.data.isPublic == true
+          || resource.data.targetTenantId == request.auth.uid
+          || isAdmin()
+        );
 
       allow create: if isSignedIn()
         && (userRole() in ["landlord", "both"] || isAdmin())
@@ -166,7 +179,11 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && (
           isAdmin()
-          || (userRole() in ["landlord", "both"] && resource.data.authorId == request.auth.uid)
+          || (
+            userRole() in ["landlord", "both"]
+            && resource.data.authorId == request.auth.uid
+            && request.resource.data.authorId == resource.data.authorId
+          )
         );
 
       allow delete: if isSignedIn()
@@ -315,6 +332,59 @@ service cloud.firestore {
         && (
           (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
           || (resource.data.tenantId == request.auth.uid && resource.data.status == "pending")
+          || isAdmin()
+        );
+    }
+
+
+    // =========================
+    // Apartment Queries / Pre-Rental Inquiries
+    // =========================
+
+    match /apartment_queries/{queryId} {
+
+      // 1. Read:
+      // Only the tenant who asked the question, the owning landlord, or an admin can read.
+      // Tenants cannot read another tenant's questions.
+      // Landlord A cannot read queries for Landlord B's apartments.
+      allow read: if isSignedIn()
+        && (
+          resource.data.tenantId == request.auth.uid
+          || resource.data.landlordId == request.auth.uid
+          || isAdmin()
+        );
+
+      // 2. Create:
+      // Must be created by the authenticated tenant.
+      // Prevents landlord tampering by checking landlordId against apartment doc in Firestore.
+      allow create: if isSignedIn()
+        && (userRole() in ["tenant", "both"] || isAdmin())
+        && request.resource.data.tenantId == request.auth.uid
+        && (
+          !exists(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId))
+          || request.resource.data.landlordId == get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId
+        );
+
+      // 3. Update:
+      // Landlord replying or updating status; relationship IDs remain immutable.
+      allow update: if isSignedIn()
+        && (
+          (
+            (
+              (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+              || isAdmin()
+            )
+            && request.resource.data.tenantId == resource.data.tenantId
+            && request.resource.data.landlordId == resource.data.landlordId
+            && request.resource.data.apartmentId == resource.data.apartmentId
+          )
+        );
+
+      // 4. Delete:
+      allow delete: if isSignedIn()
+        && (
+          (resource.data.tenantId == request.auth.uid && resource.data.status == "pending")
+          || (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
           || isAdmin()
         );
     }

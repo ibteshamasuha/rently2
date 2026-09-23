@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../models/apartment_model.dart';
+import '../../models/maintenance_request_model.dart';
+import '../../models/notice_model.dart';
+import '../../models/rental_request_model.dart';
 import '../../models/user_model.dart';
+import '../../services/apartment_service.dart';
+import '../../services/maintenance_service.dart';
+import '../../services/notice_service.dart';
+import '../../services/rental_request_service.dart';
 import '../../theme/app_theme.dart';
 import 'add_edit_apartment_screen.dart';
 import 'landlord_maintenance_screen.dart';
@@ -19,6 +27,11 @@ class LandlordHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final apartmentService = ApartmentService();
+    final requestService = RentalRequestService();
+    final maintenanceService = MaintenanceService();
+    final noticeService = NoticeService();
+
     return Scaffold(
       backgroundColor: GenXPalette.whippedCream,
       body: SafeArea(
@@ -94,36 +107,48 @@ class LandlordHomeScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // 4 Stat Cards in 2x2 Grid (Picture 1 Screen 16: 4 My Properties, 3 Rental Requests, 2 Maintenance Requests, 5 Notices)
+              // 4 Dynamic Stat Cards in 2x2 Grid (Picture 1 Screen 16: My Properties, Rental Requests, Maintenance Requests, Notices)
               Row(
                 children: [
                   Expanded(
-                    child: _buildStatCard(
-                      number: '4',
-                      label: 'My Properties',
-                      color: GenXPalette.midnightBlue,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => MyApartmentsScreen(currentUser: currentUser),
-                          ),
+                    child: StreamBuilder<List<ApartmentModel>>(
+                      stream: apartmentService.getLandlordApartments(currentUser.uid),
+                      builder: (context, snapshot) {
+                        final count = (snapshot.data?.length ?? 0).toString();
+                        return _buildStatCard(
+                          number: count,
+                          label: 'My Properties',
+                          color: GenXPalette.midnightBlue,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyApartmentsScreen(currentUser: currentUser),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildStatCard(
-                      number: '3',
-                      label: 'Rental Requests',
-                      color: const Color(0xFF2563EB),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => LandlordRequestsScreen(currentUser: currentUser),
-                          ),
+                    child: StreamBuilder<List<RentalRequestModel>>(
+                      stream: requestService.getLandlordRequests(currentUser.uid),
+                      builder: (context, snapshot) {
+                        final count = (snapshot.data?.length ?? 0).toString();
+                        return _buildStatCard(
+                          number: count,
+                          label: 'Rental Requests',
+                          color: const Color(0xFF2563EB),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LandlordRequestsScreen(currentUser: currentUser),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -136,32 +161,44 @@ class LandlordHomeScreen extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: _buildStatCard(
-                      number: '2',
-                      label: 'Maintenance\nRequests',
-                      color: const Color(0xFFEA580C),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => LandlordMaintenanceScreen(currentUser: currentUser),
-                          ),
+                    child: StreamBuilder<List<MaintenanceRequestModel>>(
+                      stream: maintenanceService.getLandlordRequests(currentUser.uid),
+                      builder: (context, snapshot) {
+                        final count = (snapshot.data?.length ?? 0).toString();
+                        return _buildStatCard(
+                          number: count,
+                          label: 'Maintenance\nRequests',
+                          color: const Color(0xFFEA580C),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LandlordMaintenanceScreen(currentUser: currentUser),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildStatCard(
-                      number: '5',
-                      label: 'Notices',
-                      color: const Color(0xFF8B5CF6),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => LandlordNoticesScreen(currentUser: currentUser),
-                          ),
+                    child: StreamBuilder<List<NoticeModel>>(
+                      stream: noticeService.getLandlordNotices(currentUser.uid),
+                      builder: (context, snapshot) {
+                        final count = (snapshot.data?.length ?? 0).toString();
+                        return _buildStatCard(
+                          number: count,
+                          label: 'Notices',
+                          color: const Color(0xFF8B5CF6),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LandlordNoticesScreen(currentUser: currentUser),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -207,72 +244,130 @@ class LandlordHomeScreen extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // Recent Request Card (Picture 1 Screen 16: "2 Bedroom Apartment", "Rajshahi", "2 hours ago", "Pending")
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: GenXPalette.cameoWhite),
-                  boxShadow: [
-                    BoxShadow(
-                      color: GenXPalette.midnightBlue.withValues(alpha: 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=200&q=80',
-                        width: 58,
-                        height: 58,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 58,
-                          height: 58,
-                          color: GenXPalette.cameoWhite,
-                          child: const Icon(Icons.apartment_rounded, color: GenXPalette.midnightBlue),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            '2 Bedroom Apartment',
-                            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+              // Dynamic Recent Request Card (Picture 1 Screen 16)
+              StreamBuilder<List<RentalRequestModel>>(
+                stream: requestService.getLandlordRequests(currentUser.uid),
+                builder: (context, snapshot) {
+                  final requests = snapshot.data ?? [];
+
+                  if (requests.isEmpty) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: GenXPalette.cameoWhite),
+                        boxShadow: [
+                          BoxShadow(
+                            color: GenXPalette.midnightBlue.withValues(alpha: 0.04),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
-                          SizedBox(height: 3),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.inbox_outlined, size: 36, color: GenXPalette.textMuted),
+                          SizedBox(height: 8),
                           Text(
-                            'Rajshahi  •  2 hours ago',
+                            'No incoming rental requests yet',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: GenXPalette.textDark,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'New requests for your apartments will appear here.',
+                            textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 12, color: GenXPalette.textMuted),
                           ),
                         ],
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: GenXPalette.warning.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'Pending',
-                        style: TextStyle(
-                          color: GenXPalette.warning,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
+                    );
+                  }
+
+                  // Display the most recent request
+                  final recent = requests.first;
+                  final title = recent.apartmentTitle ?? 'Rental Application';
+                  final tenant = recent.tenantName ?? 'Tenant (${recent.tenantId.substring(0, 5)}...)';
+                  final statusText = recent.status.toUpperCase();
+
+                  Color statusColor = GenXPalette.warning;
+                  if (recent.status == 'approved') {
+                    statusColor = GenXPalette.vineLeaf;
+                  } else if (recent.status == 'rejected') {
+                    statusColor = GenXPalette.danger;
+                  }
+
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: GenXPalette.cameoWhite),
+                      boxShadow: [
+                        BoxShadow(
+                          color: GenXPalette.midnightBlue.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 58,
+                            height: 58,
+                            color: GenXPalette.cameoWhite,
+                            child: const Icon(Icons.apartment_rounded, color: GenXPalette.midnightBlue, size: 28),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'From $tenant',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, color: GenXPalette.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
 
               const SizedBox(height: 24),

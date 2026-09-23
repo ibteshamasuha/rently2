@@ -8,6 +8,7 @@ import '../admin/admin_dashboard_screen.dart';
 import '../landlord/landlord_main_screen.dart';
 import '../tenant/tenant_main_screen.dart';
 import 'splash_screen.dart';
+import 'email_verification_screen.dart';
 import '../../widgets/rently_logo.dart';
 
 class AuthWrapper extends StatelessWidget {
@@ -29,6 +30,11 @@ class AuthWrapper extends StatelessWidget {
         // If not authenticated, display Splash Screen (Picture 1 Screen 1)
         if (firebaseUser == null) {
           return const SplashScreen();
+        }
+
+        // Email Verification Enforcement (Requirement 9)
+        if (!firebaseUser.emailVerified) {
+          return EmailVerificationScreen(user: firebaseUser);
         }
 
         // Authenticated: Stream Firestore UserModel for the authenticated user's exact UID

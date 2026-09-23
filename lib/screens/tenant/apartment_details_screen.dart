@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/apartment_model.dart';
+import '../../models/apartment_query_model.dart';
 import '../../models/user_model.dart';
+import '../../services/apartment_query_service.dart';
 import '../../theme/app_theme.dart';
 import 'rental_request_screen.dart';
 
@@ -278,7 +280,7 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
             ),
           ),
 
-          // Floating Bottom Button: "Request Rental" (Screen 9)
+          // Floating Bottom Buttons: "Inquire" & "Request Rental" (Screen 9)
           Positioned(
             bottom: 0,
             left: 0,
@@ -295,32 +297,279 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
                   ),
                 ],
               ),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RentalRequestScreen(
-                        apartment: widget.apartment,
-                        currentUser: widget.currentUser,
+              child: Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _showQueryBottomSheet(context),
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                    label: const Text('Inquire'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: GenXPalette.midnightBlue,
+                      side: const BorderSide(color: GenXPalette.midnightBlue),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RentalRequestScreen(
+                              apartment: widget.apartment,
+                              currentUser: widget.currentUser,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: GenXPalette.midnightBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text(
+                        'Request Rental',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: GenXPalette.midnightBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: const Text(
-                  'Request Rental',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showQueryBottomSheet(BuildContext context) {
+    final queryService = ApartmentQueryService();
+    final questionController = TextEditingController();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Container(
+          decoration: const BoxDecoration(
+            color: GenXPalette.whippedCream,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Ask the Landlord',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: GenXPalette.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Inquiry for: ${widget.apartment.title}',
+                        style: const TextStyle(fontSize: 12, color: GenXPalette.textMuted),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Conversation history between this tenant and the landlord for this apartment
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: StreamBuilder<List<ApartmentQueryModel>>(
+                  stream: queryService.getApartmentQueriesForTenant(
+                    widget.apartment.id,
+                    widget.currentUser.uid,
+                  ),
+                  builder: (context, snapshot) {
+                    final queries = snapshot.data ?? [];
+                    if (queries.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: GenXPalette.cameoWhite),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'No questions asked yet. Send a question below and the landlord will respond directly to you.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12.5, color: GenXPalette.textMuted),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: queries.length,
+                      itemBuilder: (context, index) {
+                        final q = queries[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: GenXPalette.cameoWhite),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.help_outline_rounded, size: 16, color: GenXPalette.midnightBlue),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      q.question,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: GenXPalette.textDark,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              if (q.isAnswered && q.answer != null)
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: GenXPalette.vineLeaf.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.check_circle_rounded, size: 14, color: GenXPalette.vineLeaf),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Landlord: ${q.answer!}',
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w500,
+                                            color: GenXPalette.vineLeaf,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                const Text(
+                                  'Waiting for landlord\'s response...',
+                                  style: TextStyle(fontSize: 11.5, color: GenXPalette.warning, fontStyle: FontStyle.italic),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Question input
+              TextField(
+                controller: questionController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Is gas bill included? When is move-in available?',
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.all(12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: GenXPalette.cameoWhite),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final question = questionController.text.trim();
+                        if (question.isEmpty) return;
+
+                        setModalState(() => isSubmitting = true);
+                        try {
+                          await queryService.sendQuery(
+                            apartmentId: widget.apartment.id,
+                            question: question,
+                            landlordId: widget.apartment.landlordId,
+                            apartmentTitle: widget.apartment.title,
+                            tenantName: widget.currentUser.name,
+                          );
+                          questionController.clear();
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Inquiry sent to landlord!'),
+                                backgroundColor: GenXPalette.vineLeaf,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e'), backgroundColor: GenXPalette.danger),
+                            );
+                          }
+                        } finally {
+                          setModalState(() => isSubmitting = false);
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: GenXPalette.midnightBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: isSubmitting
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Send Question to Landlord', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

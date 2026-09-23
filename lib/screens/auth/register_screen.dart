@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/rently_logo.dart';
 import 'auth_wrapper.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -135,6 +136,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Brand Mark
+                  Center(
+                    child: RentlyLogo.mark(size: 46),
+                  ),
+                  const SizedBox(height: 12),
+
                   // Heading matching Picture 1 Screen 6
                   const Text(
                     'Create Your Account',

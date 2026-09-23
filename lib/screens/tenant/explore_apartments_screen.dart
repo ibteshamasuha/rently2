@@ -10,6 +10,7 @@ import 'my_rental_requests_screen.dart';
 import 'tenant_maintenance_screen.dart';
 import 'tenant_notices_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../widgets/rently_logo.dart';
 
 class ExploreApartmentsScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -96,16 +97,7 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
                     // Brand Logo & Title
                     Row(
                       children: [
-                        Container(
-                          height: 38,
-                          width: 38,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: GenXPalette.cameoWhite),
-                          ),
-                          child: const Icon(Icons.home_rounded, color: GenXPalette.midnightBlue, size: 24),
-                        ),
+                        RentlyLogo.mark(size: 38, borderRadius: 10),
                         const SizedBox(width: 10),
                         const Text(
                           'Rently',

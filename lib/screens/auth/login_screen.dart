@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/rently_logo.dart';
 import 'auth_wrapper.dart';
 import 'register_screen.dart';
 
@@ -216,43 +217,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   // App Branding (Picture 1 Screen 5)
                   Center(
-                    child: Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: GenXPalette.cameoWhite),
-                        boxShadow: [
-                          BoxShadow(
-                            color: GenXPalette.midnightBlue.withValues(alpha: 0.08),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.home_rounded,
-                        size: 32,
-                        color: GenXPalette.midnightBlue,
-                      ),
+                    child: RentlyLogo.full(
+                      height: 76,
+                      transparent: true,
                     ),
                   ),
 
-                  const SizedBox(height: 12),
-
-                  const Text(
-                    'Rently',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: GenXPalette.textDark,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
                   const Text(
                     'Welcome Back',

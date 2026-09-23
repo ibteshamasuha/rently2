@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/rently_logo.dart';
 import 'onboarding_screen.dart';
 
 class SplashScreen extends StatelessWidget {
@@ -57,28 +58,7 @@ class SplashScreen extends StatelessWidget {
 
                   // Rently Brand Icon & Title (Picture 1 Screen 1)
                   Center(
-                    child: Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.home_rounded,
-                          size: 48,
-                          color: GenXPalette.midnightBlue,
-                        ),
-                      ),
-                    ),
+                    child: RentlyLogo.heroCard(size: 96),
                   ),
 
                   const SizedBox(height: 18),

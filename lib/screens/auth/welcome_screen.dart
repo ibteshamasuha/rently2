@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
+import '../../widgets/rently_logo.dart';
 
 // Generation X Color Palette (Picture 2)
 class GenXPalette {
@@ -157,20 +158,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         // Logo & Brand
                         Row(
                           children: [
-                            Container(
-                              height: 38,
-                              width: 38,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                              ),
-                              child: const Icon(
-                                Icons.home_rounded,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
+                            RentlyLogo.mark(size: 38, borderRadius: 10),
                             const SizedBox(width: 10),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

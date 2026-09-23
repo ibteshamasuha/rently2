@@ -8,6 +8,7 @@ import '../admin/admin_dashboard_screen.dart';
 import '../landlord/landlord_main_screen.dart';
 import '../tenant/tenant_main_screen.dart';
 import 'splash_screen.dart';
+import '../../widgets/rently_logo.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -165,22 +166,7 @@ class _LoadingScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: GenXPalette.cameoWhite),
-                boxShadow: [
-                  BoxShadow(
-                    color: GenXPalette.midnightBlue.withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.home_rounded, size: 48, color: GenXPalette.midnightBlue),
-            ),
+            RentlyLogo.mark(size: 72, borderRadius: 20),
             const SizedBox(height: 24),
             const SizedBox(
               width: 24,

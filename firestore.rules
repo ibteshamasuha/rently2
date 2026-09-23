@@ -255,11 +255,11 @@ service cloud.firestore {
 
     match /maintenanceRequests/{requestId} {
 
-      allow create: if isSignedIn()
-        && userRole() in ["tenant", "both", "admin"]
-        && request.resource.data.tenantId == request.auth.uid
-        && request.resource.data.status == "pending";
-
+      // 1. Read:
+      // - Tenant can see ONLY maintenance requests they submitted (resource.data.tenantId == request.auth.uid).
+      // - Landlord can see ONLY maintenance requests associated with their own apartments (resource.data.landlordId == request.auth.uid).
+      // - Landlord A CANNOT see maintenance requests for Landlord B's apartments.
+      // - Admin has broad administrative read access.
       allow read: if isSignedIn()
         && (
           resource.data.tenantId == request.auth.uid
@@ -267,15 +267,54 @@ service cloud.firestore {
           || isAdmin()
         );
 
-      allow update: if isSignedIn()
+      // 2. Create:
+      // - Tenant can create a request ONLY for themselves (request.resource.data.tenantId == request.auth.uid).
+      // - Tenant cannot submit a request pretending to be another tenant.
+      // - Initial status must be 'pending'.
+      // - If apartment exists in Firestore, landlordId MUST match the apartment's actual landlordId.
+      allow create: if isSignedIn()
+        && (userRole() in ["tenant", "both"] || isAdmin())
+        && request.resource.data.tenantId == request.auth.uid
+        && request.resource.data.status == "pending"
         && (
-          (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
-          || isAdmin()
+          !exists(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId))
+          || request.resource.data.landlordId == get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId
         );
 
+      // 3. Update:
+      // - Landlord can update status/details ONLY for maintenance requests belonging to their own apartments.
+      // - Landlord A CANNOT modify Landlord B's maintenance request.
+      // - Tenant can update details/cancel ONLY their own pending maintenance request.
+      // - Critical IDs (tenantId, landlordId, apartmentId) are strictly immutable.
+      allow update: if isSignedIn()
+        && (
+          // Landlord / Admin updating status/details:
+          (
+            (
+              (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+              || isAdmin()
+            )
+            && request.resource.data.status in ["pending", "in-progress", "completed", "rejected"]
+            && request.resource.data.tenantId == resource.data.tenantId
+            && request.resource.data.landlordId == resource.data.landlordId
+            && request.resource.data.apartmentId == resource.data.apartmentId
+          )
+          // Tenant updating their own pending request:
+          || (
+            resource.data.tenantId == request.auth.uid
+            && resource.data.status == "pending"
+            && request.resource.data.tenantId == resource.data.tenantId
+            && request.resource.data.landlordId == resource.data.landlordId
+            && request.resource.data.apartmentId == resource.data.apartmentId
+          )
+        );
+
+      // 4. Delete:
+      // - Only the owning landlord, admin, or the applicant tenant (while pending) can delete.
       allow delete: if isSignedIn()
         && (
           (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+          || (resource.data.tenantId == request.auth.uid && resource.data.status == "pending")
           || isAdmin()
         );
     }

@@ -14,7 +14,7 @@ class SplashScreen extends StatelessWidget {
       backgroundColor: GenXPalette.midnightBlue,
       body: GestureDetector(
         onTap: () {
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const OnboardingScreen()),
           );

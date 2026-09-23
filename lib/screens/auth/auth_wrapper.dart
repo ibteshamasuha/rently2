@@ -7,7 +7,7 @@ import '../../theme/app_theme.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../landlord/landlord_main_screen.dart';
 import '../tenant/tenant_main_screen.dart';
-import 'login_screen.dart';
+import 'splash_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -25,9 +25,9 @@ class AuthWrapper extends StatelessWidget {
 
         final firebaseUser = authSnapshot.data;
 
-        // If not authenticated, display LoginScreen
+        // If not authenticated, display Splash Screen (Picture 1 Screen 1)
         if (firebaseUser == null) {
-          return const LoginScreen();
+          return const SplashScreen();
         }
 
         // Authenticated: Stream Firestore UserModel for the authenticated user's exact UID

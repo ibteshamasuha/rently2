@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../auth/auth_wrapper.dart';
 import '../profile/profile_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -78,7 +79,15 @@ class AdminDashboardScreen extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(Icons.logout_rounded, color: GenXPalette.danger),
-                        onPressed: () => AuthService().signOut(),
+                        onPressed: () async {
+                          await AuthService().signOut();
+                          if (context.mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                              (route) => false,
+                            );
+                          }
+                        },
                       ),
                     ],
                   ),

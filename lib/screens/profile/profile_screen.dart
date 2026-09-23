@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../auth/auth_wrapper.dart';
 import '../tenant/my_rental_requests_screen.dart';
 import '../tenant/tenant_maintenance_screen.dart';
 import '../tenant/tenant_notices_screen.dart';
@@ -39,12 +40,9 @@ class ProfileScreen extends StatelessWidget {
               Navigator.pop(dialogCtx);
               await authService.signOut();
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Logged out successfully.'),
-                    backgroundColor: GenXPalette.midnightBlue,
-                    duration: Duration(seconds: 2),
-                  ),
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                  (route) => false,
                 );
               }
             },

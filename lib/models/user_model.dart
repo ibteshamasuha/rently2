@@ -17,10 +17,12 @@ class UserModel {
     this.createdAt,
   });
 
-  bool get isTenant => role == 'tenant' || role == 'both';
-  bool get isLandlord => role == 'landlord' || role == 'both';
-  bool get isBoth => role == 'both';
-  bool get isAdmin => role == 'admin';
+  String get normalizedRole => role.trim().toLowerCase();
+
+  bool get isTenant => normalizedRole == 'tenant' || normalizedRole == 'both';
+  bool get isLandlord => normalizedRole == 'landlord' || normalizedRole == 'both';
+  bool get isBoth => normalizedRole == 'both';
+  bool get isAdmin => normalizedRole == 'admin';
 
   factory UserModel.fromMap(Map<String, dynamic> data, String uid) {
     DateTime? parsedDate;
@@ -30,11 +32,13 @@ class UserModel {
       parsedDate = DateTime.tryParse(data['createdAt']);
     }
 
+    final rawRole = (data['role'] as String?)?.trim().toLowerCase() ?? 'tenant';
+
     return UserModel(
       uid: uid,
       email: data['email'] ?? '',
       name: data['name'] ?? '',
-      role: data['role'] ?? 'tenant',
+      role: rawRole,
       phone: data['phone'],
       createdAt: parsedDate,
     );
@@ -44,7 +48,7 @@ class UserModel {
     return {
       'email': email,
       'name': name,
-      'role': role,
+      'role': normalizedRole,
       'phone': phone,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
     };

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
@@ -6,7 +7,7 @@ import '../../theme/app_theme.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../landlord/landlord_main_screen.dart';
 import '../tenant/tenant_main_screen.dart';
-import 'splash_screen.dart';
+import 'login_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -19,57 +20,129 @@ class AuthWrapper extends StatelessWidget {
       stream: authService.authStateChanges,
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
-          return const _LoadingScreen(message: 'Connecting to Rently...');
+          return const _LoadingScreen(message: 'Checking authentication...');
         }
 
         final firebaseUser = authSnapshot.data;
 
-        // If not authenticated, display Splash Screen (Screen 1 in Picture 1)
+        // If not authenticated, display LoginScreen
         if (firebaseUser == null) {
-          return const SplashScreen();
+          return const LoginScreen();
         }
 
-        // Authenticated: Stream Firestore UserModel
-        return StreamBuilder<UserModel?>(
-          stream: authService.streamUserModel(firebaseUser.uid),
+        // Authenticated: Stream Firestore UserModel for the authenticated user's exact UID
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .snapshots(),
           builder: (context, userSnapshot) {
+            // 1. Loading state while Firestore is retrieving the user role
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const _LoadingScreen(message: 'Loading your dashboard...');
+              return const _LoadingScreen(message: 'Verifying user permissions...');
             }
 
-            final userModel = userSnapshot.data;
-
-            if (userModel == null) {
-              // Safety fallback: auto-provision user model if somehow missing
-              return FutureBuilder<UserModel>(
-                future: authService.signIn(
-                  email: firebaseUser.email ?? 'user@rently.com',
-                  password: '',
-                ).catchError((_) {
-                  // Fallback in-memory
-                  return UserModel(
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email ?? '',
-                    name: firebaseUser.displayName ?? 'Rently User',
-                    role: 'tenant',
-                  );
-                }),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return TenantMainScreen(currentUser: snapshot.data!);
-                  }
-                  return const _LoadingScreen(message: 'Setting up your profile...');
-                },
+            // 2. Firestore temporarily fails / error state
+            if (userSnapshot.hasError) {
+              return Scaffold(
+                backgroundColor: GenXPalette.whippedCream,
+                body: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, size: 54, color: GenXPalette.danger),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Connection Error',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Could not load profile from database: ${userSnapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: GenXPalette.textMuted, fontSize: 13),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () => authService.signOut(),
+                          child: const Text('Sign Out & Try Again'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               );
             }
 
-            // Route dynamically based on user role
-            if (userModel.isAdmin) {
+            // 3. Document does not exist in Firestore
+            final doc = userSnapshot.data;
+            if (doc == null || !doc.exists || doc.data() == null) {
+              return Scaffold(
+                backgroundColor: GenXPalette.whippedCream,
+                body: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.account_circle_outlined, size: 54, color: GenXPalette.warning),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Profile Not Found',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No user document found at users/${firebaseUser.uid}.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: GenXPalette.textMuted, fontSize: 13),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            OutlinedButton(
+                              onPressed: () => authService.signOut(),
+                              child: const Text('Sign Out'),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: () async {
+                                final newUser = UserModel(
+                                  uid: firebaseUser.uid,
+                                  email: firebaseUser.email ?? '',
+                                  name: firebaseUser.displayName ?? 'User',
+                                  role: 'tenant',
+                                  createdAt: DateTime.now(),
+                                );
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(firebaseUser.uid)
+                                    .set(newUser.toMap());
+                              },
+                              child: const Text('Create Profile'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            // 4. Role detection from Firestore
+            final userModel = UserModel.fromMap(doc.data()!, doc.id);
+            final role = userModel.normalizedRole;
+
+            if (role == 'admin') {
               return AdminDashboardScreen(currentUser: userModel);
-            } else if (userModel.isLandlord && !userModel.isBoth) {
+            } else if (role == 'landlord') {
               return LandlordMainScreen(currentUser: userModel);
             } else {
-              // Default to Tenant screen (users with role 'both' have access to tenant + landlord actions)
+              // Default to Tenant screen (handles 'tenant', 'both', or any other valid fallback)
               return TenantMainScreen(currentUser: userModel);
             }
           },

@@ -33,7 +33,7 @@ class AuthService {
     });
   }
 
-  /// Sign In with human-readable error messages and missing-profile auto-healing
+  /// Sign In with human-readable error messages
   Future<UserModel> signIn({required String email, required String password}) async {
     try {
       final cleanEmail = email.trim();
@@ -50,23 +50,23 @@ class AuthService {
       final user = userCredential.user;
       if (user == null) throw 'Authentication failed. Please try again.';
 
-      // Attempt to retrieve existing profile
-      UserModel? userModel = await getUserModel(user.uid);
+      // Attempt to retrieve existing profile from Firestore
+      final docSnap = await _firestore.collection('users').doc(user.uid).get();
 
-      // Auto-recovery: If user authenticated in Auth but has no Firestore profile,
-      // create it automatically to ensure they are never locked out
-      if (userModel == null) {
-        userModel = UserModel(
-          uid: user.uid,
-          email: user.email ?? cleanEmail,
-          name: user.displayName ?? cleanEmail.split('@')[0],
-          role: 'tenant',
-          createdAt: DateTime.now(),
-        );
-        await _firestore.collection('users').doc(user.uid).set(userModel.toMap());
+      if (docSnap.exists && docSnap.data() != null) {
+        return UserModel.fromMap(docSnap.data()!, user.uid);
       }
 
-      return userModel;
+      // Only if the document is genuinely missing in Firestore, create default tenant profile
+      final defaultModel = UserModel(
+        uid: user.uid,
+        email: user.email ?? cleanEmail,
+        name: user.displayName ?? cleanEmail.split('@')[0],
+        role: 'tenant',
+        createdAt: DateTime.now(),
+      );
+      await _firestore.collection('users').doc(user.uid).set(defaultModel.toMap());
+      return defaultModel;
     } on FirebaseAuthException catch (e) {
       throw _parseAuthException(e);
     } catch (e) {
@@ -100,7 +100,6 @@ class AuthService {
       final user = userCredential.user;
       if (user == null) throw 'Registration failed. Please try again.';
 
-      // Set display name in Firebase Auth
       await user.updateDisplayName(cleanName);
 
       final newUser = UserModel(

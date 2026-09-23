@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import 'auth_wrapper.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -63,8 +64,11 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      // Dismiss login screen back to root AuthWrapper which will show the user dashboard
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // Navigate to AuthWrapper to resolve role and display the destination dashboard
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthWrapper()),
+        (route) => false,
+      );
     } catch (e) {
       final friendlyMsg = e.toString();
       if (!mounted) return;

@@ -48,6 +48,14 @@ class ApartmentService {
     }
   }
 
+  /// Live stream for a specific apartment document by its Firestore document ID
+  Stream<ApartmentModel?> streamApartment(String apartmentId) {
+    return _apartmentsRef.doc(apartmentId).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      return ApartmentModel.fromFirestore(doc);
+    });
+  }
+
   /// Create apartment strictly bound to the authenticated landlord UID
   Future<void> createApartment(ApartmentModel apartment) async {
     final user = _auth.currentUser;

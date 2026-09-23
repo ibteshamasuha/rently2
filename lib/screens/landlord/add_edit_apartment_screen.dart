@@ -27,6 +27,32 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
   late final TextEditingController _rentController;
   late final TextEditingController _descController;
   late String _status;
+  late final Set<String> _selectedFeatures;
+  late final Set<String> _selectedAmenities;
+  final TextEditingController _customFeatureController = TextEditingController();
+  final TextEditingController _customAmenityController = TextEditingController();
+
+  final List<String> _commonFeatures = const [
+    'Balcony',
+    'Tiles Fitting',
+    'Furnished',
+    'Dining Space',
+    'Drawing Room',
+    'CCTV Monitoring',
+    'Rooftop Access',
+    'South Facing',
+  ];
+
+  final List<String> _commonAmenities = const [
+    'Wi-Fi',
+    'Dedicated Parking',
+    'Lift',
+    'Generator Backup',
+    '24/7 Security',
+    'Gas Connection',
+    '24/7 Water Supply',
+    'AC',
+  ];
 
   bool _isLoading = false;
 
@@ -42,6 +68,8 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
     );
     _descController = TextEditingController(text: widget.apartment?.description ?? '');
     _status = widget.apartment?.status ?? 'available';
+    _selectedFeatures = Set<String>.from(widget.apartment?.features ?? []);
+    _selectedAmenities = Set<String>.from(widget.apartment?.amenities ?? []);
   }
 
   @override
@@ -50,6 +78,8 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
     _locationController.dispose();
     _rentController.dispose();
     _descController.dispose();
+    _customFeatureController.dispose();
+    _customAmenityController.dispose();
     super.dispose();
   }
 
@@ -76,6 +106,12 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
           status: _status,
           description: _descController.text.trim(),
           landlordId: widget.apartment!.landlordId,
+          bedrooms: widget.apartment!.bedrooms,
+          bathrooms: widget.apartment!.bathrooms,
+          areaSqFt: widget.apartment!.areaSqFt,
+          images: widget.apartment!.images,
+          features: _selectedFeatures.toList(),
+          amenities: _selectedAmenities.toList(),
           createdAt: widget.apartment!.createdAt,
         );
         await _apartmentService.updateApartment(updatedApt);
@@ -88,6 +124,8 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
           status: _status,
           description: _descController.text.trim(),
           landlordId: widget.currentUser.uid,
+          features: _selectedFeatures.toList(),
+          amenities: _selectedAmenities.toList(),
           createdAt: DateTime.now(),
         );
         await _apartmentService.createApartment(newApt);
@@ -176,11 +214,146 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
 
               CustomTextField(
                 controller: _descController,
-                label: 'Description & Features',
-                hint: 'Details about bedrooms, balcony, tiles, generator, gas connection, etc.',
+                label: 'Description',
+                hint: 'Overview and notes about this apartment...',
                 prefixIcon: Icons.description_outlined,
-                maxLines: 4,
+                maxLines: 3,
                 validator: (val) => val == null || val.trim().isEmpty ? 'Enter a description' : null,
+              ),
+              const SizedBox(height: 18),
+
+              // Apartment Specific Features
+              const Text(
+                'Apartment Features',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Select specific features that belong to this apartment:',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...{..._commonFeatures, ..._selectedFeatures}.map((feature) {
+                    final isSelected = _selectedFeatures.contains(feature);
+                    return FilterChip(
+                      label: Text(feature),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedFeatures.add(feature);
+                          } else {
+                            _selectedFeatures.remove(feature);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _customFeatureController,
+                      decoration: const InputDecoration(
+                        hintText: 'Add custom feature (e.g. Master Bed Attached Bath)',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final text = _customFeatureController.text.trim();
+                      if (text.isNotEmpty) {
+                        setState(() {
+                          _selectedFeatures.add(text);
+                          _customFeatureController.clear();
+                        });
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                    ),
+                    child: const Text('Add'),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              // Apartment Specific Amenities
+              const Text(
+                'Apartment Amenities',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Select specific amenities available for this apartment:',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...{..._commonAmenities, ..._selectedAmenities}.map((amenity) {
+                    final isSelected = _selectedAmenities.contains(amenity);
+                    return FilterChip(
+                      label: Text(amenity),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedAmenities.add(amenity);
+                          } else {
+                            _selectedAmenities.remove(amenity);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _customAmenityController,
+                      decoration: const InputDecoration(
+                        hintText: 'Add custom amenity (e.g. Solar Power)',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final text = _customAmenityController.text.trim();
+                      if (text.isNotEmpty) {
+                        setState(() {
+                          _selectedAmenities.add(text);
+                          _customAmenityController.clear();
+                        });
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                    ),
+                    child: const Text('Add'),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 

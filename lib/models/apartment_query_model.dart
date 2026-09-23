@@ -12,6 +12,7 @@ class ApartmentQueryModel {
   final String status; // 'pending', 'answered'
   final DateTime? createdAt;
   final DateTime? answeredAt;
+  final DateTime? updatedAt;
 
   ApartmentQueryModel({
     required this.id,
@@ -25,6 +26,7 @@ class ApartmentQueryModel {
     this.status = 'pending',
     this.createdAt,
     this.answeredAt,
+    this.updatedAt,
   });
 
   bool get isAnswered => status == 'answered';
@@ -49,6 +51,7 @@ class ApartmentQueryModel {
       status: data['status'] ?? 'pending',
       createdAt: parseDate(data['createdAt']),
       answeredAt: parseDate(data['answeredAt']),
+      updatedAt: parseDate(data['updatedAt']),
     );
   }
 
@@ -63,6 +66,7 @@ class ApartmentQueryModel {
       if (answer != null) 'answer': answer,
       'status': status,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : FieldValue.serverTimestamp(),
       if (answeredAt != null) 'answeredAt': Timestamp.fromDate(answeredAt!),
     };
   }

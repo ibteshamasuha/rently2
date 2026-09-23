@@ -12,6 +12,8 @@ class ApartmentModel {
   final int bathrooms;
   final int areaSqFt;
   final List<String> images;
+  final List<String> features;
+  final List<String> amenities;
   final DateTime? createdAt;
 
   ApartmentModel({
@@ -26,6 +28,8 @@ class ApartmentModel {
     this.bathrooms = 1,
     this.areaSqFt = 900,
     this.images = const [],
+    this.features = const [],
+    this.amenities = const [],
     this.createdAt,
   });
 
@@ -49,6 +53,22 @@ class ApartmentModel {
       parsedImages = [data['imageUrl'] as String];
     }
 
+    List<String> parsedFeatures = [];
+    if (data['features'] is List) {
+      parsedFeatures = (data['features'] as List)
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+
+    List<String> parsedAmenities = [];
+    if (data['amenities'] is List) {
+      parsedAmenities = (data['amenities'] as List)
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+
     return ApartmentModel(
       id: doc.id,
       title: data['title'] ?? '',
@@ -61,6 +81,8 @@ class ApartmentModel {
       bathrooms: data['bathrooms'] ?? 1,
       areaSqFt: data['areaSqFt'] ?? 900,
       images: parsedImages,
+      features: parsedFeatures,
+      amenities: parsedAmenities,
       createdAt: parsedDate,
     );
   }
@@ -77,6 +99,8 @@ class ApartmentModel {
       'bathrooms': bathrooms,
       'areaSqFt': areaSqFt,
       if (images.isNotEmpty) 'images': images,
+      'features': features,
+      'amenities': amenities,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
     };
   }

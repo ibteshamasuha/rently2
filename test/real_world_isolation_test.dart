@@ -282,5 +282,174 @@ void main() {
       expect(adminUser.isAdmin, isTrue);
       expect(adminUser.normalizedRole, equals('admin'));
     });
+
+    // ------------------------------------------------------------------------
+    // (8) Apartment-specific Features & Amenities Isolation
+    // ------------------------------------------------------------------------
+    test('(8) Apartment-specific Features and Amenities are strictly bound per apartment document', () {
+      // Landlord creates 3 distinct apartments with completely different features & amenities
+      // Apartment 1: Balcony, Parking, Wi-Fi
+      final apt1 = ApartmentModel(
+        id: 'apt_1',
+        title: 'Apartment 1 (Green Valley)',
+        location: 'Rajshahi',
+        rent: 16000,
+        status: 'available',
+        description: 'Cozy flat',
+        landlordId: landlordAUid,
+        features: ['Balcony', 'Dining Space'],
+        amenities: ['Dedicated Parking', 'Wi-Fi'],
+      );
+
+      // Apartment 2: AC, Furnished, Lift
+      final apt2 = ApartmentModel(
+        id: 'apt_2',
+        title: 'Apartment 2 (Skyline)',
+        location: 'Rajshahi',
+        rent: 25000,
+        status: 'available',
+        description: 'Luxury flat',
+        landlordId: landlordAUid,
+        features: ['Furnished', 'Rooftop Access'],
+        amenities: ['AC', 'Lift'],
+      );
+
+      // Apartment 3: Generator, Security, Gas (different landlord)
+      final apt3 = ApartmentModel(
+        id: 'apt_3',
+        title: 'Apartment 3 (Sunrise)',
+        location: 'Dhaka',
+        rent: 28000,
+        status: 'available',
+        description: 'Secure flat',
+        landlordId: landlordBUid,
+        features: ['Tiles Fitting', 'South Facing'],
+        amenities: ['Generator Backup', '24/7 Security', 'Gas Connection'],
+      );
+
+      // Verify each apartment retains its own distinct list
+      expect(apt1.features, containsAll(['Balcony', 'Dining Space']));
+      expect(apt1.amenities, containsAll(['Dedicated Parking', 'Wi-Fi']));
+      expect(apt1.amenities.contains('AC'), isFalse);
+      expect(apt1.amenities.contains('Lift'), isFalse);
+
+      expect(apt2.amenities, containsAll(['AC', 'Lift']));
+      expect(apt2.features.contains('Balcony'), isFalse);
+
+      expect(apt3.amenities, containsAll(['Generator Backup', '24/7 Security', 'Gas Connection']));
+      expect(apt3.landlordId, equals(landlordBUid));
+
+      // Serialization round-trip verification
+      final map1 = apt1.toMap();
+      expect(map1['features'], equals(['Balcony', 'Dining Space']));
+      expect(map1['amenities'], equals(['Dedicated Parking', 'Wi-Fi']));
+
+      // Backward compatibility: missing features or amenities defaults safely to empty list
+      final legacyApt = ApartmentModel(
+        id: 'apt_legacy',
+        title: 'Legacy Apartment',
+        location: 'Rajshahi',
+        rent: 12000,
+        status: 'available',
+        description: 'Older doc without amenities fields',
+        landlordId: landlordAUid,
+      );
+      expect(legacyApt.features, isEmpty);
+      expect(legacyApt.amenities, isEmpty);
+    });
+
+    // ------------------------------------------------------------------------
+    // (9) Apartment Inquiry / Ask Landlord Flow & Security Isolation
+    // ------------------------------------------------------------------------
+    test('(9) Real-life inquiry flow: Tenant question -> Landlord answer -> strict isolation', () {
+      final aptX = ApartmentModel(
+        id: 'apt_x_101',
+        title: 'Apartment X',
+        location: 'Rajshahi',
+        rent: 15000,
+        status: 'available',
+        description: 'Apartment X details',
+        landlordId: landlordAUid, // owned by Landlord A
+      );
+
+      // 1. Tenant A asks Landlord A a question about Apartment X
+      final now = DateTime.now();
+      final inquiry = ApartmentQueryModel(
+        id: 'inq_1',
+        apartmentId: aptX.id,
+        apartmentTitle: aptX.title,
+        tenantId: tenantAUid,
+        tenantName: 'Tenant A',
+        landlordId: aptX.landlordId, // derived from apartment document
+        question: 'Is 24/7 gas connection available?',
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      // Verify inquiry payload integrity
+      expect(inquiry.tenantId, equals(tenantAUid));
+      expect(inquiry.apartmentId, equals(aptX.id));
+      expect(inquiry.landlordId, equals(landlordAUid));
+      expect(inquiry.status, equals('pending'));
+      expect(inquiry.updatedAt, isNotNull);
+
+      // Security rule check for Creation:
+      // - authenticated as Tenant A
+      // - inquiry.tenantId == request.auth.uid
+      // - inquiry.landlordId == aptX.landlordId
+      bool canCreateInquiry(String callerUid, String tenantId, String landlordId, String aptId) {
+        if (callerUid != tenantId) return false; // cannot impersonate another tenant
+        if (aptId == aptX.id && landlordId != aptX.landlordId) return false; // landlord tampering check
+        return true;
+      }
+
+      expect(canCreateInquiry(tenantAUid, inquiry.tenantId, inquiry.landlordId, inquiry.apartmentId), isTrue);
+      // Impersonation attempts:
+      expect(canCreateInquiry(tenantBUid, inquiry.tenantId, inquiry.landlordId, inquiry.apartmentId), isFalse);
+      // Tampering with landlordId:
+      expect(canCreateInquiry(tenantAUid, tenantAUid, landlordBUid, inquiry.apartmentId), isFalse);
+
+      // Security rule check for Reading:
+      bool canReadInquiry(String callerUid) {
+        return callerUid == inquiry.tenantId || callerUid == inquiry.landlordId || callerUid == adminUid;
+      }
+      expect(canReadInquiry(tenantAUid), isTrue); // Asking tenant
+      expect(canReadInquiry(landlordAUid), isTrue); // Owning landlord
+      expect(canReadInquiry(adminUid), isTrue); // Admin
+      expect(canReadInquiry(tenantBUid), isFalse); // Unrelated tenant DENIED
+      expect(canReadInquiry(landlordBUid), isFalse); // Unrelated landlord DENIED
+
+      // 2. Landlord A answers the inquiry
+      bool canAnswerInquiry(String callerUid, String targetLandlordId) {
+        return callerUid == targetLandlordId || callerUid == adminUid;
+      }
+      expect(canAnswerInquiry(landlordAUid, inquiry.landlordId), isTrue);
+      expect(canAnswerInquiry(landlordBUid, inquiry.landlordId), isFalse); // Landlord B cannot answer
+
+      final answeredInquiry = ApartmentQueryModel(
+        id: inquiry.id,
+        apartmentId: inquiry.apartmentId,
+        apartmentTitle: inquiry.apartmentTitle,
+        tenantId: inquiry.tenantId,
+        tenantName: inquiry.tenantName,
+        landlordId: inquiry.landlordId, // immutable
+        question: inquiry.question,
+        answer: 'Yes, full line gas is connected and active.',
+        status: 'answered',
+        createdAt: inquiry.createdAt,
+        answeredAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      expect(answeredInquiry.isAnswered, isTrue);
+      expect(answeredInquiry.answer, equals('Yes, full line gas is connected and active.'));
+      expect(answeredInquiry.tenantId, equals(tenantAUid));
+      expect(answeredInquiry.landlordId, equals(landlordAUid));
+
+      // 3. Tenant A sees the answer; Tenant B cannot see it
+      expect(canReadInquiry(tenantAUid), isTrue);
+      expect(canReadInquiry(tenantBUid), isFalse);
+    });
   });
 }

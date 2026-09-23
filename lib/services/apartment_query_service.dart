@@ -21,37 +21,42 @@ class ApartmentQueryService {
     final effectiveTenantId = user.uid;
 
     // Verify true apartment owner from Firestore to prevent tampering
-    String effectiveLandlordId = landlordId;
-    String? effectiveTitle = apartmentTitle;
+    String effectiveLandlordId = landlordId.trim();
+    String? effectiveTitle = apartmentTitle?.trim();
 
     try {
       final aptDoc = await _firestore.collection('apartments').doc(apartmentId).get();
       if (aptDoc.exists && aptDoc.data() != null) {
         final aptData = aptDoc.data()!;
-        if (aptData['landlordId'] is String && (aptData['landlordId'] as String).isNotEmpty) {
-          effectiveLandlordId = aptData['landlordId'] as String;
+        final storedLandlordId = aptData['landlordId'] as String?;
+        if (storedLandlordId != null && storedLandlordId.trim().isNotEmpty) {
+          effectiveLandlordId = storedLandlordId.trim();
         }
-        if (effectiveTitle == null || effectiveTitle.isEmpty) {
-          effectiveTitle = aptData['title'] as String?;
+        final storedTitle = aptData['title'] as String?;
+        if (storedTitle != null && storedTitle.trim().isNotEmpty) {
+          effectiveTitle = storedTitle.trim();
         }
       }
     } catch (_) {
-      // Fallback
+      // In case apartment doc isn't accessible directly, rely on the passed landlordId
     }
 
-    final query = ApartmentQueryModel(
-      id: '',
-      apartmentId: apartmentId,
-      apartmentTitle: effectiveTitle,
-      tenantId: effectiveTenantId,
-      tenantName: tenantName ?? user.displayName,
-      landlordId: effectiveLandlordId,
-      question: question.trim(),
-      status: 'pending',
-      createdAt: DateTime.now(),
-    );
+    final queryMap = <String, dynamic>{
+      'apartmentId': apartmentId,
+      if (effectiveTitle != null && effectiveTitle.isNotEmpty) 'apartmentTitle': effectiveTitle,
+      'tenantId': effectiveTenantId,
+      if (tenantName != null && tenantName.trim().isNotEmpty)
+        'tenantName': tenantName.trim()
+      else if (user.displayName != null && user.displayName!.trim().isNotEmpty)
+        'tenantName': user.displayName!.trim(),
+      'landlordId': effectiveLandlordId,
+      'question': question.trim(),
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
-    await _queriesRef.add(query.toMap());
+    await _queriesRef.add(queryMap);
   }
 
   Future<void> answerQuery({
@@ -65,12 +70,14 @@ class ApartmentQueryService {
       'answer': answer.trim(),
       'status': 'answered',
       'answeredAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   Stream<List<ApartmentQueryModel>> getTenantQueries(String tenantId) {
     final user = _auth.currentUser;
-    final effectiveId = (user != null && user.uid == tenantId) ? user.uid : tenantId;
+    final effectiveId = (user != null) ? user.uid : tenantId;
+    if (effectiveId.isEmpty) return Stream.value([]);
     return _queriesRef
         .where('tenantId', isEqualTo: effectiveId)
         .snapshots()
@@ -79,9 +86,10 @@ class ApartmentQueryService {
             .toList());
   }
 
-  Stream<List<ApartmentQueryModel>> getApartmentQueriesForTenant(String apartmentId, String tenantId) {
+  Stream<List<ApartmentQueryModel>> getApartmentQueriesForTenant(String apartmentId, [String? tenantId]) {
     final user = _auth.currentUser;
-    final effectiveId = (user != null && user.uid == tenantId) ? user.uid : tenantId;
+    final effectiveId = (user != null) ? user.uid : (tenantId ?? '');
+    if (effectiveId.isEmpty) return Stream.value([]);
     return _queriesRef
         .where('apartmentId', isEqualTo: apartmentId)
         .where('tenantId', isEqualTo: effectiveId)
@@ -93,7 +101,8 @@ class ApartmentQueryService {
 
   Stream<List<ApartmentQueryModel>> getLandlordQueries(String landlordId) {
     final user = _auth.currentUser;
-    final effectiveId = (user != null && user.uid == landlordId) ? user.uid : landlordId;
+    final effectiveId = (user != null) ? user.uid : landlordId;
+    if (effectiveId.isEmpty) return Stream.value([]);
     return _queriesRef
         .where('landlordId', isEqualTo: effectiveId)
         .snapshots()

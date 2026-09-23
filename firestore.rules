@@ -105,7 +105,7 @@ service cloud.firestore {
       // - The apartment's landlordId MUST strictly equal request.auth.uid.
       // - Never trusts a client-supplied foreign landlord UID.
       allow create: if isSignedIn()
-        && (userRole() in ["landlord", "both"] || isAdmin())
+        && (isLandlordUser() || isAdmin())
         && request.resource.data.landlordId == request.auth.uid;
 
       // 3. Update:
@@ -234,7 +234,7 @@ service cloud.firestore {
       // - Initial status must be 'pending'.
       // - Prevents landlordId tampering: if apartment exists in Firestore, landlordId MUST match the apartment's actual landlordId.
       allow create: if isSignedIn()
-        && (userRole() in ["tenant", "both"] || isAdmin())
+        && (isTenantUser() || isAdmin())
         && request.resource.data.tenantId == request.auth.uid
         && request.resource.data.status == "pending"
         && (
@@ -306,7 +306,7 @@ service cloud.firestore {
       // - Initial status must be 'pending'.
       // - If apartment exists in Firestore, landlordId MUST match the apartment's actual landlordId.
       allow create: if isSignedIn()
-        && (userRole() in ["tenant", "both"] || isAdmin())
+        && (isTenantUser() || isAdmin())
         && request.resource.data.tenantId == request.auth.uid
         && request.resource.data.status == "pending"
         && (
@@ -371,27 +371,26 @@ service cloud.firestore {
         );
 
       // 2. Create:
-      // Must be created by the authenticated tenant.
-      // Tenant ID must strictly match authenticated UID.
-      // Status must be pending.
-      // Prevents landlord tampering by checking landlordId against apartment doc in Firestore.
+      // Must be created by an authenticated user where tenantId strictly equals request.auth.uid.
+      // Initial status must be "pending".
+      // Prevents landlord tampering: if apartment doc exists and has landlordId, landlordId must match.
       allow create: if isSignedIn()
-        && isTenantUser()
         && request.resource.data.tenantId == request.auth.uid
         && request.resource.data.status == "pending"
         && (
           !exists(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId))
+          || !('landlordId' in get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data)
           || request.resource.data.landlordId == get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId
         );
 
       // 3. Update:
-      // Only the owning landlord or admin can update (e.g. reply to tenant inquiry).
+      // Only the owning landlord or admin can update (e.g. reply to inquiry).
       // Relationship IDs (tenantId, landlordId, apartmentId) remain strictly immutable.
       allow update: if isSignedIn()
         && (
           (
             (
-              (isLandlordUser() && resource.data.landlordId == request.auth.uid)
+              resource.data.landlordId == request.auth.uid
               || isAdmin()
             )
             && request.resource.data.tenantId == resource.data.tenantId
@@ -401,11 +400,11 @@ service cloud.firestore {
         );
 
       // 4. Delete:
-      // Only the asking tenant (while pending), owning landlord, or admin can delete.
+      // Only the asking user (while pending), owning landlord, or admin can delete.
       allow delete: if isSignedIn()
         && (
           (resource.data.tenantId == request.auth.uid && resource.data.status == "pending")
-          || (isLandlordUser() && resource.data.landlordId == request.auth.uid)
+          || resource.data.landlordId == request.auth.uid
           || isAdmin()
         );
     }

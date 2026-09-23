@@ -1,0 +1,197 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================
+    // Helper Functions
+    // =========================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userRole() == "admin";
+    }
+
+
+    // =========================
+    // Users
+    // =========================
+
+    match /users/{userId} {
+
+      allow read: if isSignedIn()
+        && request.auth.uid == userId;
+
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role in ["tenant", "landlord"];
+
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+        );
+
+      allow delete: if isAdmin();
+    }
+
+
+    // =========================
+    // Apartments
+    // =========================
+
+    match /apartments/{apartmentId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && userRole() == "landlord"
+        && request.resource.data.landlordId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && userRole() == "landlord"
+        && resource.data.landlordId == request.auth.uid
+        && request.resource.data.landlordId == request.auth.uid;
+
+      allow delete: if isSignedIn()
+        && userRole() == "landlord"
+        && resource.data.landlordId == request.auth.uid;
+    }
+
+
+    // =========================
+    // Rent Records
+    // =========================
+
+    match /rent_records/{recordId} {
+
+      allow read: if isSignedIn()
+        && (
+          resource.data.tenantId == request.auth.uid
+          || resource.data.landlordId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow create: if isSignedIn()
+        && (
+          (userRole() == "landlord" && request.resource.data.landlordId == request.auth.uid)
+          || isAdmin()
+        );
+
+      allow update: if isSignedIn()
+        && (
+          (userRole() == "landlord" && resource.data.landlordId == request.auth.uid)
+          || isAdmin()
+        );
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && userRole() == "landlord" && resource.data.landlordId == request.auth.uid);
+    }
+
+
+    // =========================
+    // Notices
+    // =========================
+
+    match /notices/{noticeId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && (userRole() == "landlord" || isAdmin())
+        && request.resource.data.authorId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && (
+          isAdmin()
+          || (userRole() == "landlord" && resource.data.authorId == request.auth.uid)
+        );
+
+      allow delete: if isSignedIn()
+        && (
+          isAdmin()
+          || (userRole() == "landlord" && resource.data.authorId == request.auth.uid)
+        );
+    }
+
+
+    // =========================
+    // Rental Requests
+    // =========================
+
+    match /rentalRequests/{requestId} {
+
+      allow create: if isSignedIn()
+        && userRole() == "tenant"
+        && request.resource.data.tenantId == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.landlordId ==
+          get(
+            /databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)
+          ).data.landlordId;
+
+
+      allow read: if isSignedIn()
+        && (
+          resource.data.tenantId == request.auth.uid
+          || resource.data.landlordId == request.auth.uid
+        );
+
+
+      allow update: if isSignedIn()
+        && userRole() == "landlord"
+        && resource.data.landlordId == request.auth.uid
+        && resource.data.status == "pending"
+        && request.resource.data.tenantId == resource.data.tenantId
+        && request.resource.data.apartmentId == resource.data.apartmentId
+        && request.resource.data.landlordId == resource.data.landlordId
+        && request.resource.data.status in ["approved", "rejected"];
+
+
+      allow delete: if isSignedIn()
+        && userRole() == "landlord"
+        && resource.data.landlordId == request.auth.uid;
+    }
+
+
+    // =========================
+    // Maintenance Requests
+    // =========================
+
+    match /maintenanceRequests/{requestId} {
+
+      allow create: if isSignedIn()
+        && userRole() == "tenant"
+        && request.resource.data.tenantId == request.auth.uid
+        && request.resource.data.status == "pending";
+
+      allow read: if isSignedIn()
+        && (
+          resource.data.tenantId == request.auth.uid
+          || resource.data.landlordId == request.auth.uid
+        );
+
+      allow update: if isSignedIn()
+        && userRole() == "landlord"
+        && resource.data.landlordId == request.auth.uid
+        && request.resource.data.tenantId == resource.data.tenantId
+        && request.resource.data.landlordId == resource.data.landlordId
+        && request.resource.data.apartmentId == resource.data.apartmentId
+        && request.resource.data.status in ["pending", "in-progress", "completed", "rejected"];
+
+      allow delete: if isSignedIn()
+        && userRole() == "landlord"
+        && resource.data.landlordId == request.auth.uid;
+    }
+  }
+}

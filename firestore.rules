@@ -72,20 +72,52 @@ service cloud.firestore {
 
     match /apartments/{apartmentId} {
 
-      allow read: if isSignedIn();
+      // 1. Read:
+      // - Published/available apartments are discoverable by tenants and all signed-in users.
+      // - Landlords can read their own apartments (available, pending, rented, draft).
+      // - Admins can read all apartments.
+      // - Landlords CANNOT access another landlord's private/non-available apartments.
+      allow read: if isSignedIn()
+        && (
+          resource.data.status == "available"
+          || resource.data.landlordId == request.auth.uid
+          || isAdmin()
+        );
 
+      // 2. Create:
+      // - Caller must be signed in with role 'landlord', 'both', or 'admin'.
+      // - The apartment's landlordId MUST strictly equal request.auth.uid.
+      // - Never trusts a client-supplied foreign landlord UID.
       allow create: if isSignedIn()
-        && userRole() in ["landlord", "both", "admin"]
+        && (userRole() in ["landlord", "both"] || isAdmin())
         && request.resource.data.landlordId == request.auth.uid;
 
+      // 3. Update:
+      // - Only the owning landlord or an admin can update.
+      // - Landlord A CANNOT update Landlord B's apartment.
+      // - landlordId is immutable: cannot change landlordId or assign apartment to another landlord.
       allow update: if isSignedIn()
-        && userRole() in ["landlord", "both", "admin"]
-        && resource.data.landlordId == request.auth.uid
-        && request.resource.data.landlordId == request.auth.uid;
+        && (
+          (
+            userRole() in ["landlord", "both"]
+            && resource.data.landlordId == request.auth.uid
+            && request.resource.data.landlordId == resource.data.landlordId
+            && request.resource.data.landlordId == request.auth.uid
+          )
+          || isAdmin()
+        );
 
+      // 4. Delete:
+      // - Only the owning landlord or an admin can delete the apartment.
+      // - Landlord A CANNOT delete Landlord B's apartment.
       allow delete: if isSignedIn()
-        && userRole() in ["landlord", "both", "admin"]
-        && resource.data.landlordId == request.auth.uid;
+        && (
+          (
+            userRole() in ["landlord", "both"]
+            && resource.data.landlordId == request.auth.uid
+          )
+          || isAdmin()
+        );
     }
 
 

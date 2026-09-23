@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
+import '../../theme/app_theme.dart';
 import '../profile/profile_screen.dart';
-import 'landlord_maintenance_screen.dart';
+import 'landlord_home_screen.dart';
 import 'landlord_notices_screen.dart';
-import 'landlord_rent_records_screen.dart';
 import 'landlord_requests_screen.dart';
 import 'my_apartments_screen.dart';
 
@@ -25,10 +25,12 @@ class _LandlordMainScreenState extends State<LandlordMainScreen> {
   void initState() {
     super.initState();
     _pages = [
+      LandlordHomeScreen(
+        currentUser: widget.currentUser,
+        onNavigateTab: (idx) => setState(() => _currentIndex = idx),
+      ),
       MyApartmentsScreen(currentUser: widget.currentUser),
       LandlordRequestsScreen(currentUser: widget.currentUser),
-      LandlordMaintenanceScreen(currentUser: widget.currentUser),
-      LandlordRentRecordsScreen(currentUser: widget.currentUser),
       LandlordNoticesScreen(currentUser: widget.currentUser),
       ProfileScreen(user: widget.currentUser),
     ];
@@ -41,41 +43,57 @@ class _LandlordMainScreenState extends State<LandlordMainScreen> {
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.apartment_outlined),
-            selectedIcon: Icon(Icons.apartment),
-            label: 'Properties',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: const Border(top: BorderSide(color: GenXPalette.cameoWhite, width: 1)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: NavigationBar(
+            height: 64,
+            elevation: 0,
+            backgroundColor: Colors.white,
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+            indicatorColor: GenXPalette.midnightBlue,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded, color: Colors.white),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.apartment_outlined),
+                selectedIcon: Icon(Icons.apartment_rounded, color: Colors.white),
+                label: 'Properties',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.assignment_outlined),
+                selectedIcon: Icon(Icons.assignment_rounded, color: Colors.white),
+                label: 'Requests',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.notifications_none_rounded),
+                selectedIcon: Icon(Icons.notifications_rounded, color: Colors.white),
+                label: 'Notices',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded, color: Colors.white),
+                label: 'Profile',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.inbox_outlined),
-            selectedIcon: Icon(Icons.inbox),
-            label: 'Requests',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.build_circle_outlined),
-            selectedIcon: Icon(Icons.build_circle),
-            label: 'Repairs',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Rent Bills',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.campaign_outlined),
-            selectedIcon: Icon(Icons.campaign),
-            label: 'Notices',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+        ),
       ),
     );
   }

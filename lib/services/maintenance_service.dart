@@ -12,6 +12,8 @@ class MaintenanceService {
     required String apartmentId,
     required String title,
     required String description,
+    String? issueType,
+    String? photoUrl,
     String? apartmentTitle,
     String? tenantName,
   }) async {
@@ -23,6 +25,8 @@ class MaintenanceService {
       title: title,
       description: description,
       status: 'pending',
+      issueType: issueType,
+      photoUrl: photoUrl,
       apartmentTitle: apartmentTitle,
       tenantName: tenantName,
       createdAt: DateTime.now(),
@@ -30,6 +34,29 @@ class MaintenanceService {
 
     await _maintenanceRef.add(request.toMap());
   }
+
+  // Alias
+  Future<void> createTicket({
+    required String tenantId,
+    required String landlordId,
+    required String apartmentId,
+    required String title,
+    required String description,
+    String? issueType,
+    String? photoUrl,
+    String? apartmentTitle,
+    String? tenantName,
+  }) => submitRequest(
+    tenantId: tenantId,
+    landlordId: landlordId,
+    apartmentId: apartmentId,
+    title: title,
+    description: description,
+    issueType: issueType,
+    photoUrl: photoUrl,
+    apartmentTitle: apartmentTitle,
+    tenantName: tenantName,
+  );
 
   Stream<List<MaintenanceRequestModel>> getTenantRequests(String tenantId) {
     return _maintenanceRef

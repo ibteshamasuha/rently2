@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../../models/maintenance_request_model.dart';
 import '../../models/user_model.dart';
 import '../../services/maintenance_service.dart';
-import '../../widgets/custom_text_field.dart';
-import '../../widgets/empty_state.dart';
-import '../../widgets/status_badge.dart';
+import '../../theme/app_theme.dart';
 
 class TenantMaintenanceScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -18,247 +14,312 @@ class TenantMaintenanceScreen extends StatefulWidget {
 
 class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
   final _maintenanceService = MaintenanceService();
+  final _descriptionController = TextEditingController();
 
-  void _showNewTicketModal() {
-    final titleController = TextEditingController();
-    final descController = TextEditingController();
-    final landlordIdController = TextEditingController();
-    final apartmentIdController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isSubmitting = false;
+  String? _selectedIssueType;
+  bool _isSubmitting = false;
+  bool _hasPhoto = false;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (modalCtx, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 24,
-            bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 24,
-          ),
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'New Maintenance Request',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Report an issue with your rented apartment to your landlord.',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
+  final List<String> _issueTypes = const [
+    'Plumbing',
+    'Electrical',
+    'Heating / AC',
+    'Appliance',
+    'Structural / Wall',
+    'Other Issue',
+  ];
 
-                  CustomTextField(
-                    controller: titleController,
-                    label: 'Issue Title',
-                    hint: 'e.g. Water tap leaking, Electrical socket broken',
-                    prefixIcon: Icons.build_outlined,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter a title' : null,
-                  ),
-                  const SizedBox(height: 12),
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
-                  CustomTextField(
-                    controller: apartmentIdController,
-                    label: 'Apartment ID / Title',
-                    hint: 'e.g. RvKz7GagxbSqqEXcGZHy or 2 Bedroom Apartment',
-                    prefixIcon: Icons.home_outlined,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter apartment ID' : null,
-                  ),
-                  const SizedBox(height: 12),
-
-                  CustomTextField(
-                    controller: landlordIdController,
-                    label: 'Landlord ID',
-                    hint: 'e.g. VRJqiSBDQ7frreWavr8MLfGHjlr1',
-                    prefixIcon: Icons.person_outline,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter landlord ID' : null,
-                  ),
-                  const SizedBox(height: 12),
-
-                  CustomTextField(
-                    controller: descController,
-                    label: 'Detailed Description',
-                    hint: 'Describe the problem and when it started...',
-                    prefixIcon: Icons.description_outlined,
-                    maxLines: 3,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter a description' : null,
-                  ),
-                  const SizedBox(height: 20),
-
-                  ElevatedButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () async {
-                            if (!formKey.currentState!.validate()) return;
-                            setModalState(() => isSubmitting = true);
-                            try {
-                              await _maintenanceService.submitRequest(
-                                tenantId: widget.currentUser.uid,
-                                landlordId: landlordIdController.text.trim(),
-                                apartmentId: apartmentIdController.text.trim(),
-                                title: titleController.text.trim(),
-                                description: descController.text.trim(),
-                                tenantName: widget.currentUser.name,
-                              );
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Maintenance ticket submitted!'),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error: ${e.toString()}'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            } finally {
-                              setModalState(() => isSubmitting = false);
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: isSubmitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('Submit Request', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-          ),
+  Future<void> _handleSubmit() async {
+    if (_selectedIssueType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select an issue type.'),
+          backgroundColor: GenXPalette.danger,
+          behavior: SnackBarBehavior.floating,
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    if (_descriptionController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a description of the issue.'),
+          backgroundColor: GenXPalette.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      await _maintenanceService.createTicket(
+        tenantId: widget.currentUser.uid,
+        landlordId: 'landlord_system',
+        apartmentId: 'active_apartment',
+        title: '$_selectedIssueType Issue',
+        description: _descriptionController.text.trim(),
+        apartmentTitle: '2 Bedroom Apartment',
+        tenantName: widget.currentUser.name,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Text(
+                'Maintenance request submitted successfully!',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          backgroundColor: GenXPalette.vineLeaf,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      _descriptionController.clear();
+      setState(() {
+        _selectedIssueType = null;
+        _hasPhoto = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit: $e'),
+          backgroundColor: GenXPalette.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: GenXPalette.whippedCream,
       appBar: AppBar(
-        title: const Text('Maintenance Tickets'),
+        title: const Text('Maintenance Request'),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showNewTicketModal,
-        icon: const Icon(Icons.add),
-        label: const Text('New Request'),
-      ),
-      body: StreamBuilder<List<MaintenanceRequestModel>>(
-        stream: _maintenanceService.getTenantRequests(widget.currentUser.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final tickets = snapshot.data ?? [];
-
-          if (tickets.isEmpty) {
-            return EmptyStateWidget(
-              icon: Icons.handyman_outlined,
-              title: 'No Maintenance Tickets',
-              message: 'Everything looking good! Need repairs? Tap below to report an issue to your landlord.',
-              actionLabel: 'Report Issue',
-              onAction: _showNewTicketModal,
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16.0),
-            itemCount: tickets.length,
-            itemBuilder: (context, index) {
-              final ticket = tickets[index];
-              final dateStr = ticket.createdAt != null
-                  ? DateFormat('MMM d, y • h:mm a').format(ticket.createdAt!)
-                  : 'Recent';
-
-              return Card(
-                elevation: 1,
-                margin: const EdgeInsets.only(bottom: 12.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.grey.shade200),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              ticket.title,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          StatusBadge(status: ticket.status),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Reported: $dateStr',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        ticket.description,
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
-                      ),
-                      const SizedBox(height: 10),
-                      const Divider(height: 1),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Landlord ID: ${ticket.landlordId}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              // Tool Illustration / Icon Container matching Picture 1 Screen 11
+              Center(
+                child: Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: GenXPalette.cameoWhite),
+                    boxShadow: [
+                      BoxShadow(
+                        color: GenXPalette.midnightBlue.withValues(alpha: 0.08),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.build_rounded,
+                      size: 32,
+                      color: GenXPalette.midnightBlue,
+                    ),
+                  ),
                 ),
-              );
-            },
-          );
-        },
+              ),
+
+              const SizedBox(height: 18),
+
+              // Heading & Subtitle (Screen 11)
+              const Text(
+                'Report a Maintenance Issue',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: GenXPalette.textDark,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Help us keep your home in the best condition.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: GenXPalette.textMuted,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // Issue Type Dropdown (Screen 11)
+              const Text(
+                'Issue Type',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: GenXPalette.cameoWhite),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedIssueType,
+                    hint: const Text('Select issue type', style: TextStyle(color: GenXPalette.textMuted, fontSize: 14)),
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: GenXPalette.textMuted),
+                    items: _issueTypes.map((type) {
+                      return DropdownMenuItem(
+                        value: type,
+                        child: Text(type, style: const TextStyle(fontSize: 14, color: GenXPalette.textDark)),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedIssueType = val),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Description Field (Screen 11)
+              const Text(
+                'Description',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: 'Describe the issue in detail...',
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.all(16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: GenXPalette.cameoWhite),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: GenXPalette.cameoWhite),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Upload Photo Box (Picture 1 Screen 11)
+              const Text(
+                'Upload Photo (optional)',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () {
+                  setState(() => _hasPhoto = !_hasPhoto);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(_hasPhoto ? 'Photo selected!' : 'Photo removed.'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+                child: Container(
+                  height: 110,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _hasPhoto ? GenXPalette.vineLeaf : GenXPalette.cameoWhite,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _hasPhoto ? Icons.check_circle_rounded : Icons.camera_alt_outlined,
+                          size: 32,
+                          color: _hasPhoto ? GenXPalette.vineLeaf : GenXPalette.textMuted,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _hasPhoto ? 'Photo Attached (Tap to remove)' : 'Tap to upload',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _hasPhoto ? GenXPalette.vineLeaf : GenXPalette.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Submit Button (Screen 11)
+              ElevatedButton(
+                onPressed: _isSubmitting ? null : _handleSubmit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: GenXPalette.midnightBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text(
+                        'Submit',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+              ),
+
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
-import '../../widgets/custom_text_field.dart';
+import '../../theme/app_theme.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -15,10 +15,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
 
-  String _selectedRole = 'tenant';
+  String _selectedRole = 'tenant'; // 'tenant', 'landlord', 'both'
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
@@ -29,17 +28,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
-
-    if (_passwordController.text != _confirmPasswordController.text) {
-      setState(() => _errorMessage = 'Passwords do not match');
-      return;
-    }
 
     setState(() {
       _isLoading = true;
@@ -54,13 +47,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: _selectedRole,
         phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
       );
-      if (mounted) {
-        Navigator.pop(context); // Return to login or wrapper will auto route
-      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Text(
+                'Account created successfully! Welcome to Rently.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          backgroundColor: GenXPalette.vineLeaf,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Dismiss to root AuthWrapper which will route to their dashboard
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
+      final friendlyMsg = e.toString();
+      if (!mounted) return;
+
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = friendlyMsg;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  friendlyMsg,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: GenXPalette.danger,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -72,18 +110,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const midnightBlue = Color(0xFF38454D);
-    const whippedCream = Color(0xFFF7F5EE);
-
     return Scaffold(
-      backgroundColor: whippedCream,
+      backgroundColor: GenXPalette.whippedCream,
       appBar: AppBar(
-        title: const Text('Create Account', style: TextStyle(color: midnightBlue, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: Navigator.canPop(context)
             ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: midnightBlue),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: GenXPalette.textDark),
                 onPressed: () => Navigator.pop(context),
               )
             : null,
@@ -91,22 +125,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Heading matching Picture 1 Screen 6
                   const Text(
-                    'Join Rently',
+                    'Create Your Account',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: midnightBlue, letterSpacing: -0.5),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: GenXPalette.textDark,
+                      letterSpacing: -0.4,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Find or manage apartments easily in one place',
+                    'Join Rently and find your perfect home.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF6B7680), fontSize: 13),
+                    style: TextStyle(color: GenXPalette.textMuted, fontSize: 13),
                   ),
                   const SizedBox(height: 24),
 
@@ -115,17 +155,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.red.shade200),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
-                          const SizedBox(width: 8),
+                          Icon(Icons.error_outline_rounded, color: Colors.red.shade700, size: 20),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                              style: TextStyle(color: Colors.red.shade700, fontSize: 13, fontWeight: FontWeight.w500),
                             ),
                           ),
                         ],
@@ -134,73 +174,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Role Selection
-                  const Text('Select Your Role:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.person, size: 18),
-                                  SizedBox(width: 6),
-                                  Text('Tenant / Seeker', style: TextStyle(fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ),
-                          selected: _selectedRole == 'tenant',
-                          onSelected: (val) {
-                            if (val) setState(() => _selectedRole = 'tenant');
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.domain, size: 18),
-                                  SizedBox(width: 6),
-                                  Text('Landlord', style: TextStyle(fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ),
-                          selected: _selectedRole == 'landlord',
-                          onSelected: (val) {
-                            if (val) setState(() => _selectedRole = 'landlord');
-                          },
-                        ),
-                      ),
-                    ],
+                  // 3 Role Cards matching Picture 1 Screen 6: Tenant, Landlord, Both
+                  _buildRoleCard(
+                    roleKey: 'tenant',
+                    title: 'Tenant',
+                    subtitle: 'Looking for a place',
+                    icon: Icons.person_outline_rounded,
                   ),
+                  const SizedBox(height: 10),
+                  _buildRoleCard(
+                    roleKey: 'landlord',
+                    title: 'Landlord',
+                    subtitle: 'Have a property',
+                    icon: Icons.home_work_outlined,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildRoleCard(
+                    roleKey: 'both',
+                    title: 'Both',
+                    subtitle: 'Both roles',
+                    icon: Icons.group_outlined,
+                  ),
+
                   const SizedBox(height: 20),
 
-                  CustomTextField(
+                  // Full Name
+                  TextFormField(
                     controller: _nameController,
-                    label: 'Full Name',
-                    hint: 'e.g. Asuha Rahman',
-                    prefixIcon: Icons.badge_outlined,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter your name' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Name',
+                      hintText: 'e.g. Asuha Rahman',
+                      prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+                    ),
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter your full name' : null,
                   ),
                   const SizedBox(height: 14),
 
-                  CustomTextField(
+                  // Email
+                  TextFormField(
                     controller: _emailController,
-                    label: 'Email Address',
-                    hint: 'e.g. user@example.com',
-                    prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      hintText: 'user@example.com',
+                      prefixIcon: Icon(Icons.mail_outline_rounded, size: 20),
+                    ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) return 'Enter your email';
                       if (!val.contains('@')) return 'Enter a valid email';
@@ -209,24 +227,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  CustomTextField(
+                  // Phone Number
+                  TextFormField(
                     controller: _phoneController,
-                    label: 'Phone Number (Optional)',
-                    hint: '017XXXXXXXX',
-                    prefixIcon: Icons.phone_outlined,
                     keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      hintText: '017XXXXXXXX',
+                      prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                    ),
                   ),
                   const SizedBox(height: 14),
 
-                  CustomTextField(
+                  // Password
+                  TextFormField(
                     controller: _passwordController,
-                    label: 'Password',
-                    hint: '••••••••',
-                    prefixIcon: Icons.lock_outline,
                     obscureText: _obscurePassword,
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      hintText: '••••••••',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          size: 20,
+                          color: GenXPalette.textMuted,
+                        ),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
                     ),
                     validator: (val) {
                       if (val == null || val.isEmpty) return 'Enter a password';
@@ -234,39 +262,138 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 14),
-
-                  CustomTextField(
-                    controller: _confirmPasswordController,
-                    label: 'Confirm Password',
-                    hint: '••••••••',
-                    prefixIcon: Icons.lock_reset_outlined,
-                    obscureText: _obscurePassword,
-                    validator: (val) => val == null || val.isEmpty ? 'Confirm your password' : null,
-                  ),
                   const SizedBox(height: 24),
 
+                  // Sign Up Button
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleRegister,
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                      backgroundColor: midnightBlue,
+                      backgroundColor: GenXPalette.midnightBlue,
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0,
                     ),
                     child: _isLoading
                         ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                           )
-                        : const Text('Create Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        : const Text('Sign Up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // Footer: Already have an account? Login
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Already have an account? ',
+                        style: TextStyle(color: GenXPalette.textMuted, fontSize: 13.5),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Text(
+                          'Login',
+                          style: TextStyle(
+                            color: GenXPalette.midnightBlue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleCard({
+    required String roleKey,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedRole == roleKey;
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedRole = roleKey),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? GenXPalette.midnightBlue : GenXPalette.cameoWhite,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: GenXPalette.midnightBlue.withValues(alpha: 0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 42,
+              width: 42,
+              decoration: BoxDecoration(
+                color: isSelected ? GenXPalette.midnightBlue : GenXPalette.cameoWhite.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : GenXPalette.textDark,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? GenXPalette.midnightBlue : GenXPalette.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: GenXPalette.textMuted),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle_rounded, color: GenXPalette.midnightBlue, size: 22)
+            else
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: GenXPalette.cameoWhite, width: 2),
+                ),
+              ),
+          ],
         ),
       ),
     );

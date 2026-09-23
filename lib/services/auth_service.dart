@@ -33,55 +33,137 @@ class AuthService {
     });
   }
 
+  /// Sign In with human-readable error messages and missing-profile auto-healing
   Future<UserModel> signIn({required String email, required String password}) async {
-    final userCredential = await _auth.signInWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
+    try {
+      final cleanEmail = email.trim();
+      final cleanPassword = password.trim();
 
-    final user = userCredential.user;
-    if (user == null) throw Exception('Authentication failed.');
+      if (cleanEmail.isEmpty) throw 'Please enter your email or phone.';
+      if (cleanPassword.isEmpty) throw 'Please enter your password.';
 
-    final userModel = await getUserModel(user.uid);
-    if (userModel == null) {
-      throw Exception('User profile not found in database.');
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: cleanEmail,
+        password: cleanPassword,
+      );
+
+      final user = userCredential.user;
+      if (user == null) throw 'Authentication failed. Please try again.';
+
+      // Attempt to retrieve existing profile
+      UserModel? userModel = await getUserModel(user.uid);
+
+      // Auto-recovery: If user authenticated in Auth but has no Firestore profile,
+      // create it automatically to ensure they are never locked out
+      if (userModel == null) {
+        userModel = UserModel(
+          uid: user.uid,
+          email: user.email ?? cleanEmail,
+          name: user.displayName ?? cleanEmail.split('@')[0],
+          role: 'tenant',
+          createdAt: DateTime.now(),
+        );
+        await _firestore.collection('users').doc(user.uid).set(userModel.toMap());
+      }
+
+      return userModel;
+    } on FirebaseAuthException catch (e) {
+      throw _parseAuthException(e);
+    } catch (e) {
+      throw e.toString().replaceAll('Exception: ', '');
     }
-    return userModel;
   }
 
+  /// Sign Up with role support ('tenant', 'landlord', 'both')
   Future<UserModel> signUp({
     required String email,
     required String password,
     required String name,
-    required String role, // 'tenant' or 'landlord'
+    required String role, // 'tenant', 'landlord', or 'both'
     String? phone,
   }) async {
-    if (!['tenant', 'landlord'].contains(role)) {
-      throw Exception('Invalid role selected: $role');
+    try {
+      final cleanEmail = email.trim();
+      final cleanPassword = password.trim();
+      final cleanName = name.trim();
+      final cleanRole = role.trim().toLowerCase();
+
+      if (!['tenant', 'landlord', 'both'].contains(cleanRole)) {
+        throw 'Invalid role selected: $role';
+      }
+
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: cleanEmail,
+        password: cleanPassword,
+      );
+
+      final user = userCredential.user;
+      if (user == null) throw 'Registration failed. Please try again.';
+
+      // Set display name in Firebase Auth
+      await user.updateDisplayName(cleanName);
+
+      final newUser = UserModel(
+        uid: user.uid,
+        email: cleanEmail,
+        name: cleanName,
+        role: cleanRole,
+        phone: phone?.trim(),
+        createdAt: DateTime.now(),
+      );
+
+      await _firestore.collection('users').doc(user.uid).set(newUser.toMap());
+      return newUser;
+    } on FirebaseAuthException catch (e) {
+      throw _parseAuthException(e);
+    } catch (e) {
+      throw e.toString().replaceAll('Exception: ', '');
     }
-
-    final userCredential = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
-
-    final user = userCredential.user;
-    if (user == null) throw Exception('Registration failed.');
-
-    final newUser = UserModel(
-      uid: user.uid,
-      email: email.trim(),
-      name: name.trim(),
-      role: role,
-      phone: phone?.trim(),
-      createdAt: DateTime.now(),
-    );
-
-    await _firestore.collection('users').doc(user.uid).set(newUser.toMap());
-    return newUser;
   }
 
+  /// Send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      final cleanEmail = email.trim();
+      if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+        throw 'Please enter a valid email address.';
+      }
+      await _auth.sendPasswordResetEmail(email: cleanEmail);
+    } on FirebaseAuthException catch (e) {
+      throw _parseAuthException(e);
+    } catch (e) {
+      throw e.toString().replaceAll('Exception: ', '');
+    }
+  }
+
+  /// Sign Out
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  /// Map Firebase Auth codes to clear, friendly user messages
+  String _parseAuthException(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Invalid email or password. Please check your credentials and try again.';
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'email-already-in-use':
+        return 'This email is already registered. Please log in instead.';
+      case 'weak-password':
+        return 'Password is too weak. Please use at least 6 characters.';
+      case 'user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      case 'too-many-requests':
+        return 'Too many failed attempts. Please try again in a few minutes.';
+      case 'network-request-failed':
+        return 'Network error. Please check your internet connection and try again.';
+      case 'operation-not-allowed':
+        return 'Email/password sign-in is not enabled. Please contact administrator.';
+      default:
+        return e.message ?? 'An unexpected authentication error occurred.';
+    }
   }
 }

@@ -13,6 +13,7 @@ class RentalRequestService {
     String? message,
     String? apartmentTitle,
     String? tenantName,
+    DateTime? preferredMoveInDate,
   }) async {
     final newRequest = RentalRequestModel(
       id: '',
@@ -23,11 +24,31 @@ class RentalRequestService {
       message: message,
       apartmentTitle: apartmentTitle,
       tenantName: tenantName,
+      preferredMoveInDate: preferredMoveInDate,
       createdAt: DateTime.now(),
     );
 
     await _requestsRef.add(newRequest.toMap());
   }
+
+  // Alias for compatibility
+  Future<void> createRequest({
+    required String tenantId,
+    required String landlordId,
+    required String apartmentId,
+    String? message,
+    String? apartmentTitle,
+    String? tenantName,
+    DateTime? preferredMoveInDate,
+  }) => sendRentalRequest(
+    tenantId: tenantId,
+    landlordId: landlordId,
+    apartmentId: apartmentId,
+    message: message,
+    apartmentTitle: apartmentTitle,
+    tenantName: tenantName,
+    preferredMoveInDate: preferredMoveInDate,
+  );
 
   Stream<List<RentalRequestModel>> getTenantRequests(String tenantId) {
     return _requestsRef

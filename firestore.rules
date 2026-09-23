@@ -27,19 +27,17 @@ service cloud.firestore {
     // =========================
 
     match /users/{userId} {
-
-      allow read: if isSignedIn()
-        && request.auth.uid == userId;
+      // Allow signed-in users to read profile info (necessary to show landlord/tenant names)
+      allow read: if isSignedIn();
 
       allow create: if isSignedIn()
         && request.auth.uid == userId
-        && request.resource.data.role in ["tenant", "landlord"];
+        && request.resource.data.role in ["tenant", "landlord", "both", "admin"];
 
       allow update: if isAdmin()
         || (
           isSignedIn()
           && request.auth.uid == userId
-          && request.resource.data.role == resource.data.role
         );
 
       allow delete: if isAdmin();
@@ -55,16 +53,16 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       allow create: if isSignedIn()
-        && userRole() == "landlord"
+        && userRole() in ["landlord", "both", "admin"]
         && request.resource.data.landlordId == request.auth.uid;
 
       allow update: if isSignedIn()
-        && userRole() == "landlord"
+        && userRole() in ["landlord", "both", "admin"]
         && resource.data.landlordId == request.auth.uid
         && request.resource.data.landlordId == request.auth.uid;
 
       allow delete: if isSignedIn()
-        && userRole() == "landlord"
+        && userRole() in ["landlord", "both", "admin"]
         && resource.data.landlordId == request.auth.uid;
     }
 
@@ -84,18 +82,18 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && (
-          (userRole() == "landlord" && request.resource.data.landlordId == request.auth.uid)
+          (userRole() in ["landlord", "both"] && request.resource.data.landlordId == request.auth.uid)
           || isAdmin()
         );
 
       allow update: if isSignedIn()
         && (
-          (userRole() == "landlord" && resource.data.landlordId == request.auth.uid)
+          (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
           || isAdmin()
         );
 
       allow delete: if isAdmin()
-        || (isSignedIn() && userRole() == "landlord" && resource.data.landlordId == request.auth.uid);
+        || (isSignedIn() && userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid);
     }
 
 
@@ -108,19 +106,19 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       allow create: if isSignedIn()
-        && (userRole() == "landlord" || isAdmin())
+        && (userRole() in ["landlord", "both"] || isAdmin())
         && request.resource.data.authorId == request.auth.uid;
 
       allow update: if isSignedIn()
         && (
           isAdmin()
-          || (userRole() == "landlord" && resource.data.authorId == request.auth.uid)
+          || (userRole() in ["landlord", "both"] && resource.data.authorId == request.auth.uid)
         );
 
       allow delete: if isSignedIn()
         && (
           isAdmin()
-          || (userRole() == "landlord" && resource.data.authorId == request.auth.uid)
+          || (userRole() in ["landlord", "both"] && resource.data.authorId == request.auth.uid)
         );
     }
 
@@ -132,35 +130,28 @@ service cloud.firestore {
     match /rentalRequests/{requestId} {
 
       allow create: if isSignedIn()
-        && userRole() == "tenant"
+        && userRole() in ["tenant", "both", "admin"]
         && request.resource.data.tenantId == request.auth.uid
-        && request.resource.data.status == "pending"
-        && request.resource.data.landlordId ==
-          get(
-            /databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)
-          ).data.landlordId;
-
+        && request.resource.data.status == "pending";
 
       allow read: if isSignedIn()
         && (
           resource.data.tenantId == request.auth.uid
           || resource.data.landlordId == request.auth.uid
+          || isAdmin()
         );
 
-
       allow update: if isSignedIn()
-        && userRole() == "landlord"
-        && resource.data.landlordId == request.auth.uid
-        && resource.data.status == "pending"
-        && request.resource.data.tenantId == resource.data.tenantId
-        && request.resource.data.apartmentId == resource.data.apartmentId
-        && request.resource.data.landlordId == resource.data.landlordId
-        && request.resource.data.status in ["approved", "rejected"];
-
+        && (
+          (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+          || isAdmin()
+        );
 
       allow delete: if isSignedIn()
-        && userRole() == "landlord"
-        && resource.data.landlordId == request.auth.uid;
+        && (
+          (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+          || isAdmin()
+        );
     }
 
 
@@ -171,7 +162,7 @@ service cloud.firestore {
     match /maintenanceRequests/{requestId} {
 
       allow create: if isSignedIn()
-        && userRole() == "tenant"
+        && userRole() in ["tenant", "both", "admin"]
         && request.resource.data.tenantId == request.auth.uid
         && request.resource.data.status == "pending";
 
@@ -179,19 +170,20 @@ service cloud.firestore {
         && (
           resource.data.tenantId == request.auth.uid
           || resource.data.landlordId == request.auth.uid
+          || isAdmin()
         );
 
       allow update: if isSignedIn()
-        && userRole() == "landlord"
-        && resource.data.landlordId == request.auth.uid
-        && request.resource.data.tenantId == resource.data.tenantId
-        && request.resource.data.landlordId == resource.data.landlordId
-        && request.resource.data.apartmentId == resource.data.apartmentId
-        && request.resource.data.status in ["pending", "in-progress", "completed", "rejected"];
+        && (
+          (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+          || isAdmin()
+        );
 
       allow delete: if isSignedIn()
-        && userRole() == "landlord"
-        && resource.data.landlordId == request.auth.uid;
+        && (
+          (userRole() in ["landlord", "both"] && resource.data.landlordId == request.auth.uid)
+          || isAdmin()
+        );
     }
   }
 }

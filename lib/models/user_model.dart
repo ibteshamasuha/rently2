@@ -4,7 +4,7 @@ class UserModel {
   final String uid;
   final String email;
   final String name;
-  final String role; // 'tenant', 'landlord', 'admin'
+  final String role; // 'tenant', 'landlord', 'both', 'admin'
   final String? phone;
   final DateTime? createdAt;
 
@@ -17,8 +17,9 @@ class UserModel {
     this.createdAt,
   });
 
-  bool get isTenant => role == 'tenant';
-  bool get isLandlord => role == 'landlord';
+  bool get isTenant => role == 'tenant' || role == 'both';
+  bool get isLandlord => role == 'landlord' || role == 'both';
+  bool get isBoth => role == 'both';
   bool get isAdmin => role == 'admin';
 
   factory UserModel.fromMap(Map<String, dynamic> data, String uid) {

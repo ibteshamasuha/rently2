@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
+import '../../theme/app_theme.dart';
 import '../profile/profile_screen.dart';
 import 'explore_apartments_screen.dart';
 import 'my_rental_requests_screen.dart';
-import 'tenant_maintenance_screen.dart';
 import 'tenant_notices_screen.dart';
-import 'tenant_rent_records_screen.dart';
 
 class TenantMainScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -25,13 +24,8 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
   void initState() {
     super.initState();
     _pages = [
-      ExploreApartmentsScreen(
-        currentUser: widget.currentUser,
-        onTabSelected: (idx) => setState(() => _currentIndex = idx),
-      ),
+      ExploreApartmentsScreen(currentUser: widget.currentUser),
       MyRentalRequestsScreen(currentUser: widget.currentUser),
-      TenantMaintenanceScreen(currentUser: widget.currentUser),
-      TenantRentRecordsScreen(currentUser: widget.currentUser),
       const TenantNoticesScreen(),
       ProfileScreen(user: widget.currentUser),
     ];
@@ -39,8 +33,6 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryDark = Color(0xFF38454D); // Midnight Blue N480-7
-
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -49,10 +41,12 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          border: const Border(
+            top: BorderSide(color: GenXPalette.cameoWhite, width: 1),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 16,
               offset: const Offset(0, -4),
             ),
@@ -61,12 +55,12 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
         child: SafeArea(
           top: false,
           child: NavigationBar(
-            height: 68,
+            height: 64,
             elevation: 0,
-            backgroundColor: Colors.transparent,
+            backgroundColor: Colors.white,
             selectedIndex: _currentIndex,
             onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
-            indicatorColor: primaryDark,
+            indicatorColor: GenXPalette.midnightBlue,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: const [
               NavigationDestination(
@@ -75,23 +69,13 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
                 label: 'Home',
               ),
               NavigationDestination(
-                icon: Icon(Icons.calendar_today_outlined),
-                selectedIcon: Icon(Icons.calendar_today_rounded, color: Colors.white),
-                label: 'Bookings',
+                icon: Icon(Icons.assignment_outlined),
+                selectedIcon: Icon(Icons.assignment_rounded, color: Colors.white),
+                label: 'Requests',
               ),
               NavigationDestination(
-                icon: Icon(Icons.build_outlined),
-                selectedIcon: Icon(Icons.build_rounded, color: Colors.white),
-                label: 'Repairs',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded, color: Colors.white),
-                label: 'Rent',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.campaign_outlined),
-                selectedIcon: Icon(Icons.campaign_rounded, color: Colors.white),
+                icon: Icon(Icons.notifications_none_rounded),
+                selectedIcon: Icon(Icons.notifications_rounded, color: Colors.white),
                 label: 'Notices',
               ),
               NavigationDestination(

@@ -5,9 +5,13 @@ class ApartmentModel {
   final String title;
   final String location;
   final num rent;
-  final String status; // 'available', 'rented'
+  final String status; // 'available', 'pending', 'rented'
   final String description;
   final String landlordId;
+  final int bedrooms;
+  final int bathrooms;
+  final int areaSqFt;
+  final List<String> images;
   final DateTime? createdAt;
 
   ApartmentModel({
@@ -18,10 +22,16 @@ class ApartmentModel {
     required this.status,
     required this.description,
     required this.landlordId,
+    this.bedrooms = 2,
+    this.bathrooms = 1,
+    this.areaSqFt = 900,
+    this.images = const [],
     this.createdAt,
   });
 
   bool get isAvailable => status.toLowerCase() == 'available';
+  bool get isPending => status.toLowerCase() == 'pending';
+  bool get isRented => status.toLowerCase() == 'rented';
 
   factory ApartmentModel.fromFirestore(DocumentSnapshot doc) {
     final data = (doc.data() as Map<String, dynamic>?) ?? {};
@@ -32,14 +42,25 @@ class ApartmentModel {
       parsedDate = DateTime.tryParse(data['createdAt']);
     }
 
+    List<String> parsedImages = [];
+    if (data['images'] is List) {
+      parsedImages = List<String>.from(data['images']);
+    } else if (data['imageUrl'] is String && (data['imageUrl'] as String).isNotEmpty) {
+      parsedImages = [data['imageUrl'] as String];
+    }
+
     return ApartmentModel(
       id: doc.id,
       title: data['title'] ?? '',
-      location: data['location'] ?? '',
+      location: data['location'] ?? 'Rajshahi',
       rent: data['rent'] ?? 0,
       status: data['status'] ?? 'available',
       description: data['description'] ?? '',
       landlordId: data['landlordId'] ?? '',
+      bedrooms: data['bedrooms'] ?? 2,
+      bathrooms: data['bathrooms'] ?? 1,
+      areaSqFt: data['areaSqFt'] ?? 900,
+      images: parsedImages,
       createdAt: parsedDate,
     );
   }
@@ -52,6 +73,10 @@ class ApartmentModel {
       'status': status,
       'description': description,
       'landlordId': landlordId,
+      'bedrooms': bedrooms,
+      'bathrooms': bathrooms,
+      'areaSqFt': areaSqFt,
+      if (images.isNotEmpty) 'images': images,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
     };
   }

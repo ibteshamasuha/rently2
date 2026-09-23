@@ -9,6 +9,7 @@ class RentalRequestModel {
   final String? message;
   final String? apartmentTitle;
   final String? tenantName;
+  final DateTime? preferredMoveInDate;
   final DateTime? createdAt;
 
   RentalRequestModel({
@@ -20,6 +21,7 @@ class RentalRequestModel {
     this.message,
     this.apartmentTitle,
     this.tenantName,
+    this.preferredMoveInDate,
     this.createdAt,
   });
 
@@ -36,6 +38,13 @@ class RentalRequestModel {
       parsedDate = DateTime.tryParse(data['createdAt']);
     }
 
+    DateTime? moveInDate;
+    if (data['preferredMoveInDate'] is Timestamp) {
+      moveInDate = (data['preferredMoveInDate'] as Timestamp).toDate();
+    } else if (data['preferredMoveInDate'] is String) {
+      moveInDate = DateTime.tryParse(data['preferredMoveInDate']);
+    }
+
     return RentalRequestModel(
       id: doc.id,
       tenantId: data['tenantId'] ?? '',
@@ -45,6 +54,7 @@ class RentalRequestModel {
       message: data['message'],
       apartmentTitle: data['apartmentTitle'],
       tenantName: data['tenantName'],
+      preferredMoveInDate: moveInDate,
       createdAt: parsedDate,
     );
   }
@@ -58,6 +68,7 @@ class RentalRequestModel {
       if (message != null && message!.isNotEmpty) 'message': message,
       if (apartmentTitle != null) 'apartmentTitle': apartmentTitle,
       if (tenantName != null) 'tenantName': tenantName,
+      if (preferredMoveInDate != null) 'preferredMoveInDate': Timestamp.fromDate(preferredMoveInDate!),
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
     };
   }

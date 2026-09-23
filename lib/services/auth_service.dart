@@ -18,6 +18,9 @@ class AuthService {
 
   Future<UserModel?> getUserModel(String uid) async {
     try {
+      final authUser = _auth.currentUser;
+      if (authUser == null) return null;
+
       final doc = await _firestore.collection('users').doc(uid).get();
       if (!doc.exists || doc.data() == null) return null;
       return UserModel.fromMap(doc.data()!, uid);
@@ -26,11 +29,39 @@ class AuthService {
     }
   }
 
+  Stream<UserModel?> streamCurrentUserModel() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value(null);
+    return streamUserModel(user.uid);
+  }
+
   Stream<UserModel?> streamUserModel(String uid) {
     return _firestore.collection('users').doc(uid).snapshots().map((doc) {
       if (!doc.exists || doc.data() == null) return null;
       return UserModel.fromMap(doc.data()!, uid);
     });
+  }
+
+  /// Safely update allowed profile fields of the currently authenticated user.
+  /// Prevents changing role, email, uid, or timestamps.
+  Future<void> updateCurrentUserProfile({String? name, String? phone}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'User not authenticated.';
+
+    final updates = <String, dynamic>{};
+    if (name != null && name.trim().isNotEmpty) {
+      updates['name'] = name.trim();
+    }
+    if (phone != null) {
+      updates['phone'] = phone.trim();
+    }
+
+    if (updates.isNotEmpty) {
+      await _firestore.collection('users').doc(user.uid).update(updates);
+      if (name != null && name.trim().isNotEmpty) {
+        await user.updateDisplayName(name.trim());
+      }
+    }
   }
 
   /// Sign In with human-readable error messages

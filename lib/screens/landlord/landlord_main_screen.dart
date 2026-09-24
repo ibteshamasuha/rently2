@@ -6,6 +6,7 @@ import 'landlord_home_screen.dart';
 import 'landlord_notices_screen.dart';
 import 'landlord_requests_screen.dart';
 import 'my_apartments_screen.dart';
+import '../../widgets/in_app_notification_popup.dart';
 
 class LandlordMainScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -38,11 +39,13 @@ class _LandlordMainScreenState extends State<LandlordMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+    return InAppNotificationPopup(
+      currentUser: widget.currentUser,
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _pages,
+        ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -95,6 +98,7 @@ class _LandlordMainScreenState extends State<LandlordMainScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

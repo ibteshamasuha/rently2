@@ -178,9 +178,69 @@ class AuthService {
     }
   }
 
+  /// Change password with reauthentication (Issue 11)
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw 'User not authenticated.';
+    if (newPassword.length < 6) throw 'New password must be at least 6 characters.';
+
+    try {
+      final cred = EmailAuthProvider.credential(email: user.email!, password: currentPassword.trim());
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(newPassword.trim());
+    } on FirebaseAuthException catch (e) {
+      throw _parseAuthException(e);
+    }
+  }
+
+  /// Change email with verification and reauthentication (Issue 11 & 12)
+  Future<void> changeEmail({
+    required String newEmail,
+    required String currentPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw 'User not authenticated.';
+
+    final cleanNewEmail = newEmail.trim();
+    if (!cleanNewEmail.contains('@')) throw 'Please enter a valid email address.';
+
+    try {
+      final cred = EmailAuthProvider.credential(email: user.email!, password: currentPassword.trim());
+      await user.reauthenticateWithCredential(cred);
+      await user.verifyBeforeUpdateEmail(cleanNewEmail);
+    } on FirebaseAuthException catch (e) {
+      throw _parseAuthException(e);
+    }
+  }
+
   /// Sign Out
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  /// Delete user account safely (Issue 14)
+  Future<void> deleteAccount({required String currentPassword}) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw 'User not authenticated.';
+
+    try {
+      // 1. Re-authenticate for sensitive operation
+      final cred = EmailAuthProvider.credential(email: user.email!, password: currentPassword.trim());
+      await user.reauthenticateWithCredential(cred);
+
+      final uid = user.uid;
+
+      // 2. Delete user document in Firestore
+      await _firestore.collection('users').doc(uid).delete();
+
+      // 3. Delete Firebase Auth account
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw _parseAuthException(e);
+    }
   }
 
   /// Map Firebase Auth codes to clear, friendly user messages

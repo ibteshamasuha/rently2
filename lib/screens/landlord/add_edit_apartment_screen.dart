@@ -3,6 +3,8 @@ import '../../models/apartment_model.dart';
 import '../../models/user_model.dart';
 import '../../services/apartment_service.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/apartment_image_widget.dart';
+import '../../utils/file_picker_helper.dart';
 
 class AddEditApartmentScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -29,6 +31,8 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
   late String _status;
   late final Set<String> _selectedFeatures;
   late final Set<String> _selectedAmenities;
+  late final List<String> _apartmentImages;
+  final TextEditingController _imageUrlController = TextEditingController();
   final TextEditingController _customFeatureController = TextEditingController();
   final TextEditingController _customAmenityController = TextEditingController();
 
@@ -70,6 +74,7 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
     _status = widget.apartment?.status ?? 'available';
     _selectedFeatures = Set<String>.from(widget.apartment?.features ?? []);
     _selectedAmenities = Set<String>.from(widget.apartment?.amenities ?? []);
+    _apartmentImages = List<String>.from(widget.apartment?.images ?? []);
   }
 
   @override
@@ -78,6 +83,7 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
     _locationController.dispose();
     _rentController.dispose();
     _descController.dispose();
+    _imageUrlController.dispose();
     _customFeatureController.dispose();
     _customAmenityController.dispose();
     super.dispose();
@@ -109,7 +115,7 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
           bedrooms: widget.apartment!.bedrooms,
           bathrooms: widget.apartment!.bathrooms,
           areaSqFt: widget.apartment!.areaSqFt,
-          images: widget.apartment!.images,
+          images: _apartmentImages,
           features: _selectedFeatures.toList(),
           amenities: _selectedAmenities.toList(),
           createdAt: widget.apartment!.createdAt,
@@ -124,6 +130,7 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
           status: _status,
           description: _descController.text.trim(),
           landlordId: widget.currentUser.uid,
+          images: _apartmentImages,
           features: _selectedFeatures.toList(),
           amenities: _selectedAmenities.toList(),
           createdAt: DateTime.now(),
@@ -352,6 +359,139 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                     ),
                     child: const Text('Add'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Apartment Photos (Issue 5)
+              const Text(
+                'Apartment Photos',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Add images for this apartment for prospective tenants to see:',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 10),
+              if (_apartmentImages.isNotEmpty)
+                SizedBox(
+                  height: 100,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _apartmentImages.length,
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(right: 12),
+                            width: 120,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: ApartmentImageWidget(
+                              imageUrl: _apartmentImages[index],
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 16,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _apartmentImages.removeAt(index);
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close, color: Colors.white, size: 14),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 8),
+
+              // File Explorer / Device Gallery Button (Issue 6)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    try {
+                      final picked = await pickImagesFromDevice();
+                      if (picked.isNotEmpty) {
+                        setState(() {
+                          _apartmentImages.addAll(picked);
+                        });
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Added ${picked.length} photo(s) from device.')),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to select photos: $e')),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+                  label: const Text('Add Photos from Device / Gallery', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    side: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _imageUrlController,
+                      decoration: InputDecoration(
+                        hintText: 'Or paste photo URL (https://...)',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final url = _imageUrlController.text.trim();
+                      if (url.isNotEmpty && (url.startsWith('http://') || url.startsWith('https://'))) {
+                        setState(() {
+                          _apartmentImages.add(url);
+                          _imageUrlController.clear();
+                        });
+                      } else if (url.isNotEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter a valid image URL starting with http:// or https://')),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    child: const Text('Add URL'),
                   ),
                 ],
               ),

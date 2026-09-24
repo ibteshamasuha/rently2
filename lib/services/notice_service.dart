@@ -1,14 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/notice_model.dart';
+import 'notification_service.dart';
 
 class NoticeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
 
   CollectionReference get _noticesRef => _firestore.collection('notices');
 
-  /// Landlords see only the notices they published (Requirement 2)
+  /// Landlords see only the notices they published (Requirement 2 & Issue 17)
   Stream<List<NoticeModel>> getLandlordNotices(String landlordId) {
     final user = _auth.currentUser;
     final effectiveId = (user != null && user.uid == landlordId) ? user.uid : landlordId;
@@ -28,27 +30,48 @@ class NoticeService {
     });
   }
 
-  /// Tenants see public announcements and notices specifically intended for them
+  /// Tenants see public announcements and notices specifically intended for them (Issue 17)
   Stream<List<NoticeModel>> getTenantNotices(String tenantId) {
+    final user = _auth.currentUser;
+    final effectiveId = (user != null) ? user.uid : tenantId;
+    if (effectiveId.isEmpty) return Stream.value([]);
+
     return _noticesRef
+        .where('isPublic', isEqualTo: true)
         .snapshots()
-        .map((snapshot) {
-      final list = snapshot.docs
+        .asyncMap((publicSnap) async {
+      final publicNotices = publicSnap.docs
           .map((doc) => NoticeModel.fromFirestore(doc))
-          .where((n) => n.isPublic || n.targetTenantId == tenantId)
           .toList();
-      list.sort((a, b) {
-        if (a.createdAt == null) return 1;
-        if (b.createdAt == null) return -1;
-        return b.createdAt!.compareTo(a.createdAt!);
-      });
-      return list;
+
+      try {
+        final targetedSnap = await _noticesRef
+            .where('targetTenantId', isEqualTo: effectiveId)
+            .get();
+        final targetedNotices = targetedSnap.docs
+            .map((doc) => NoticeModel.fromFirestore(doc))
+            .toList();
+
+        final all = <String, NoticeModel>{};
+        for (final n in [...publicNotices, ...targetedNotices]) {
+          all[n.id] = n;
+        }
+        final list = all.values.toList();
+        list.sort((a, b) {
+          if (a.createdAt == null) return 1;
+          if (b.createdAt == null) return -1;
+          return b.createdAt!.compareTo(a.createdAt!);
+        });
+        return list;
+      } catch (_) {
+        return publicNotices;
+      }
     });
   }
 
-  /// General getNotices with backward compatibility
+  /// General getNotices for admin or system overview
   Stream<List<NoticeModel>> getNotices() {
-    return _noticesRef.snapshots().map((snapshot) {
+    return _noticesRef.where('isPublic', isEqualTo: true).snapshots().map((snapshot) {
       final list = snapshot.docs
           .map((doc) => NoticeModel.fromFirestore(doc))
           .toList();
@@ -76,21 +99,36 @@ class NoticeService {
 
     final notice = NoticeModel(
       id: '',
-      title: title,
-      message: message,
+      title: title.trim(),
+      message: message.trim(),
       authorId: effectiveAuthorId,
       authorName: authorName,
       authorRole: authorRole,
       isPublic: isPublic,
-      targetTenantId: targetTenantId,
-      apartmentId: apartmentId,
+      targetTenantId: targetTenantId?.trim(),
+      apartmentId: apartmentId?.trim(),
       createdAt: DateTime.now(),
     );
 
     await _noticesRef.add(notice.toMap());
+
+    // If targeted to a specific tenant, deliver notification (Issue 6 & 17)
+    if (targetTenantId != null && targetTenantId.trim().isNotEmpty) {
+      try {
+        await _notificationService.createNotification(
+          recipientId: targetTenantId.trim(),
+          type: 'notice',
+          title: 'New Notice: ${title.trim()}',
+          message: message.trim(),
+          apartmentId: apartmentId?.trim(),
+        );
+      } catch (_) {}
+    }
   }
 
   Future<void> deleteNotice(String noticeId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'User not authenticated.';
     await _noticesRef.doc(noticeId).delete();
   }
 }

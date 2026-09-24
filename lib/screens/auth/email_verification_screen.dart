@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
@@ -18,8 +19,33 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   final AuthService _authService = AuthService();
   bool _isChecking = false;
   bool _isResending = false;
+  int _cooldownSeconds = 0;
+  Timer? _timer;
   String? _message;
   bool _isError = false;
+
+  void _startCooldown([int seconds = 60]) {
+    _timer?.cancel();
+    setState(() => _cooldownSeconds = seconds);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() => _cooldownSeconds = 0);
+      } else {
+        setState(() => _cooldownSeconds--);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _checkEmailVerified() async {
     setState(() {
@@ -71,10 +97,25 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       final currentUser = FirebaseAuth.instance.currentUser ?? widget.user;
       await currentUser.sendEmailVerification();
       if (!mounted) return;
+      _startCooldown(60);
       setState(() {
         _isError = false;
         _message = 'Verification email sent! Please check your inbox (and spam folder).';
       });
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'too-many-requests') {
+        _startCooldown(120);
+        setState(() {
+          _isError = true;
+          _message = 'Too many requests. Please wait a couple minutes before requesting another verification email, or check your spam/junk folder.';
+        });
+      } else {
+        setState(() {
+          _isError = true;
+          _message = 'Failed to resend email: ${e.message ?? e.code}';
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -203,7 +244,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 const SizedBox(height: 12),
 
                 OutlinedButton(
-                  onPressed: _isResending ? null : _resendVerificationEmail,
+                  onPressed: (_isResending || _cooldownSeconds > 0) ? null : _resendVerificationEmail,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: GenXPalette.midnightBlue,
                     side: const BorderSide(color: GenXPalette.midnightBlue),
@@ -216,9 +257,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: GenXPalette.midnightBlue),
                         )
-                      : const Text(
-                          'Resend Verification Link',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      : Text(
+                          _cooldownSeconds > 0
+                              ? 'Resend Verification in ${_cooldownSeconds}s'
+                              : 'Resend Verification Link',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                         ),
                 ),
                 const SizedBox(height: 20),

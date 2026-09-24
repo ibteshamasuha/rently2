@@ -10,6 +10,10 @@ import 'my_rental_requests_screen.dart';
 import 'tenant_maintenance_screen.dart';
 import 'tenant_notices_screen.dart';
 import '../profile/profile_screen.dart';
+import '../notifications/notifications_inbox_screen.dart';
+import '../auth/welcome_screen.dart' show WelcomeScreen;
+import '../../models/notification_model.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/rently_logo.dart';
 
 class ExploreApartmentsScreen extends StatefulWidget {
@@ -32,35 +36,6 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
   final _currencyFormat = NumberFormat.currency(symbol: '৳', decimalDigits: 0);
 
   final Set<String> _favoriteIds = {};
-
-  final List<ApartmentModel> _featuredFallback = [
-    ApartmentModel(
-      id: 'demo-1',
-      title: '2 Bedroom Apartment',
-      location: 'Rajshahi',
-      rent: 15000,
-      status: 'available',
-      description: 'A beautiful 2 bedroom apartment near RUET. Spacious, well-ventilated and in a peaceful neighborhood.',
-      landlordId: 'landlord_1',
-      bedrooms: 2,
-      bathrooms: 1,
-      areaSqFt: 900,
-      images: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80'],
-    ),
-    ApartmentModel(
-      id: 'demo-2',
-      title: '3 Bedroom Apartment',
-      location: 'Rajshahi',
-      rent: 22000,
-      status: 'available',
-      description: 'Modern luxury 3-bedroom apartment with scenic rooftop view and elevator access.',
-      landlordId: 'landlord_2',
-      bedrooms: 3,
-      bathrooms: 2,
-      areaSqFt: 1200,
-      images: ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80'],
-    ),
-  ];
 
   @override
   void dispose() {
@@ -95,57 +70,120 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     // Brand Logo & Title
-                    Row(
-                      children: [
-                        RentlyLogo.mark(size: 38, borderRadius: 10),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Rently',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: GenXPalette.textDark,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Notification Bell with Red Badge (Screen 7)
+                    // Brand Logo & Title (Issue 18: Logo navigates to Welcome/Home page)
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => TenantNoticesScreen(currentUser: widget.currentUser)),
+                          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
                         );
                       },
-                      child: Container(
-                        height: 40,
-                        width: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: GenXPalette.cameoWhite),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            const Icon(Icons.notifications_none_rounded, size: 22, color: GenXPalette.textDark),
-                            Positioned(
-                              top: 9,
-                              right: 10,
+                      child: Row(
+                        children: [
+                          RentlyLogo.mark(size: 38, borderRadius: 10),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'Rently',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: GenXPalette.textDark,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Row(
+                      children: [
+                        // Notification Bell with Live Unread Badge (Issues 7, 10, 11)
+                        StreamBuilder<List<NotificationModel>>(
+                          stream: NotificationService().streamUnreadNotifications(widget.currentUser.uid),
+                          builder: (context, notifSnap) {
+                            final unreadCount = notifSnap.data?.length ?? 0;
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => NotificationsInboxScreen(currentUser: widget.currentUser),
+                                  ),
+                                );
+                              },
                               child: Container(
-                                width: 7,
-                                height: 7,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFEF4444),
+                                height: 40,
+                                width: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
                                   shape: BoxShape.circle,
+                                  border: Border.all(color: GenXPalette.cameoWhite),
+                                ),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    const Icon(Icons.notifications_none_rounded, size: 22, color: GenXPalette.textDark),
+                                    if (unreadCount > 0)
+                                      Positioned(
+                                        top: 6,
+                                        right: 6,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFEF4444),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                                          child: Text(
+                                            unreadCount > 9 ? '9+' : '$unreadCount',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Profile Icon (Issue 11 & 18: opens user profile)
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => ProfileScreen(user: widget.currentUser)),
+                            );
+                          },
+                          child: Container(
+                            height: 40,
+                            width: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCEAF4),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: GenXPalette.cameoWhite),
+                            ),
+                            child: Center(
+                              child: Text(
+                                widget.currentUser.name.isNotEmpty
+                                    ? widget.currentUser.name[0].toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: GenXPalette.midnightBlue,
                                 ),
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -363,9 +401,33 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
               StreamBuilder<List<ApartmentModel>>(
                 stream: _apartmentService.getAvailableApartments(),
                 builder: (context, snapshot) {
-                  List<ApartmentModel> apartments = snapshot.data ?? [];
+                  final apartments = snapshot.data ?? [];
                   if (apartments.isEmpty) {
-                    apartments = _featuredFallback;
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: GenXPalette.cameoWhite),
+                      ),
+                      child: Column(
+                        children: const [
+                          Icon(Icons.apartment_rounded, size: 44, color: GenXPalette.textMuted),
+                          SizedBox(height: 10),
+                          Text(
+                            'No Available Apartments Yet',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Newly listed apartments from landlords will appear here in real time.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12.5, color: GenXPalette.textMuted),
+                          ),
+                        ],
+                      ),
+                    );
                   }
 
                   return Column(

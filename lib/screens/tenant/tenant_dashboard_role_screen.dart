@@ -9,8 +9,11 @@ import '../../services/rental_request_service.dart';
 import '../../theme/app_theme.dart';
 import 'apartment_details_screen.dart';
 import 'apartment_listings_screen.dart';
-import 'my_rental_requests_screen.dart';
 import 'tenant_notices_screen.dart';
+import 'my_rental_requests_screen.dart';
+import '../profile/profile_screen.dart';
+import '../auth/welcome_screen.dart' show WelcomeScreen;
+import '../../widgets/rently_logo.dart';
 
 class TenantDashboardRoleScreen extends StatelessWidget {
   final UserModel currentUser;
@@ -38,6 +41,29 @@ class TenantDashboardRoleScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            RentlyLogo.mark(size: 20, borderRadius: 6),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Rently',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: GenXPalette.midnightBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       const Text(
                         'Good Morning,',
                         style: TextStyle(fontSize: 14, color: GenXPalette.textMuted),
@@ -54,21 +80,29 @@ class TenantDashboardRoleScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDCEAF4),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: GenXPalette.cameoWhite),
-                    ),
-                    child: Center(
-                      child: Text(
-                        currentUser.name.isNotEmpty ? currentUser.name[0].toUpperCase() : 'I',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: GenXPalette.midnightBlue,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => ProfileScreen(user: currentUser)),
+                      );
+                    },
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCEAF4),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: GenXPalette.cameoWhite),
+                      ),
+                      child: Center(
+                        child: Text(
+                          currentUser.name.isNotEmpty ? currentUser.name[0].toUpperCase() : 'I',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: GenXPalette.midnightBlue,
+                          ),
                         ),
                       ),
                     ),

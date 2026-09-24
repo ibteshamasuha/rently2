@@ -6,6 +6,7 @@ import '../../models/user_model.dart';
 import '../../services/apartment_query_service.dart';
 import '../../services/apartment_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/apartment_image_widget.dart';
 import 'rental_request_screen.dart';
 
 class ApartmentDetailsScreen extends StatefulWidget {
@@ -27,12 +28,6 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
   int _currentImageIndex = 0;
   bool _isFavorite = false;
 
-  final List<String> _apartmentPhotos = const [
-    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
-    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=80',
-  ];
 
   IconData _getFeatureAmenityIcon(String name) {
     final lower = name.toLowerCase();
@@ -74,7 +69,7 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
       initialData: widget.apartment,
       builder: (context, snapshot) {
         final apt = snapshot.data ?? widget.apartment;
-        final photos = apt.images.isNotEmpty ? apt.images : _apartmentPhotos;
+        final photos = apt.images;
         final allSpecificItems = {...apt.features, ...apt.amenities}.toList();
 
         return Scaffold(
@@ -90,49 +85,74 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
                     // Photo Gallery Header with counter (Screen 9)
                     SizedBox(
                       height: 320,
-                      child: Stack(
-                        children: [
-                          PageView.builder(
-                            controller: _pageController,
-                            itemCount: photos.length,
-                            onPageChanged: (idx) => setState(() => _currentImageIndex = idx),
-                            itemBuilder: (context, index) {
-                              return Image.network(
-                                photos[index],
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  color: GenXPalette.midnightBlue,
-                                  child: const Center(
-                                    child: Icon(Icons.apartment_rounded, color: Colors.white54, size: 64),
+                      child: photos.isNotEmpty
+                          ? Stack(
+                              children: [
+                                PageView.builder(
+                                  controller: _pageController,
+                                  itemCount: photos.length,
+                                  onPageChanged: (idx) => setState(() => _currentImageIndex = idx),
+                                  itemBuilder: (context, index) {
+                                    return ApartmentImageWidget(
+                                      imageUrl: photos[index],
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                    );
+                                  },
+                                ),
+                                if (photos.length > 1)
+                                  Positioned(
+                                    bottom: 16,
+                                    right: 16,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.65),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '${_currentImageIndex + 1}/${photos.length}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
                                   ),
+                              ],
+                            )
+                          : Container(
+                              width: double.infinity,
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [GenXPalette.midnightBlue, Color(0xFF2C3942)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                              );
-                            },
-                          ),
-
-                          // Photo Counter Badge (e.g. 1/4)
-                          Positioned(
-                            bottom: 16,
-                            right: 16,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.65),
-                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text(
-                                '${_currentImageIndex + 1}/${photos.length}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.apartment_rounded, size: 72, color: Colors.white70),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    apt.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    apt.location,
+                                    style: const TextStyle(color: Colors.white60, fontSize: 13),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                        ],
-                      ),
                     ),
 
                     // Main Details Card
@@ -467,6 +487,21 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
                     widget.currentUser.uid,
                   ),
                   builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: GenXPalette.danger.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: GenXPalette.danger.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          'Could not load questions: ${snapshot.error}',
+                          style: const TextStyle(fontSize: 12, color: GenXPalette.danger),
+                        ),
+                      );
+                    }
+
                     final queries = snapshot.data ?? [];
                     if (queries.isEmpty) {
                       return Container(

@@ -5,6 +5,7 @@ import '../profile/profile_screen.dart';
 import 'explore_apartments_screen.dart';
 import 'my_rental_requests_screen.dart';
 import 'tenant_notices_screen.dart';
+import '../../widgets/in_app_notification_popup.dart';
 
 class TenantMainScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -33,11 +34,13 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+    return InAppNotificationPopup(
+      currentUser: widget.currentUser,
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _pages,
+        ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -87,6 +90,8 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
+}
+

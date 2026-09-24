@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/maintenance_request_model.dart';
+import 'notification_service.dart';
 
 class MaintenanceService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
 
   CollectionReference get _maintenanceRef => _firestore.collection('maintenanceRequests');
 
@@ -25,44 +27,47 @@ class MaintenanceService {
     // Enforce authenticated tenant UID (never trust client-supplied tenantId parameter)
     final effectiveTenantId = user.uid;
 
-    String effectiveLandlordId = landlordId;
-    String effectiveApartmentId = apartmentId;
-    String? effectiveApartmentTitle = apartmentTitle;
+    // Strict Active Tenancy Verification (Issue 4):
+    // A tenant can only submit maintenance requests for their active approved tenancy.
+    final approvedLeaseQuery = await _firestore
+        .collection('rentalRequests')
+        .where('tenantId', isEqualTo: effectiveTenantId)
+        .where('status', isEqualTo: 'approved')
+        .get();
 
-    // Verify true apartment ownership from Firestore if available
-    try {
-      final aptDoc = await _firestore.collection('apartments').doc(apartmentId).get();
-      if (aptDoc.exists && aptDoc.data() != null) {
-        final aptData = aptDoc.data()!;
-        if (aptData['landlordId'] is String && (aptData['landlordId'] as String).isNotEmpty) {
-          effectiveLandlordId = aptData['landlordId'] as String;
-        }
-        if (effectiveApartmentTitle == null || effectiveApartmentTitle.isEmpty) {
-          effectiveApartmentTitle = aptData['title'] as String?;
-        }
-      } else {
-        // If placeholder 'active_apartment', find tenant's approved lease if any
-        final approvedQuery = await _firestore
-            .collection('rentalRequests')
-            .where('tenantId', isEqualTo: effectiveTenantId)
-            .where('status', isEqualTo: 'approved')
-            .limit(1)
-            .get();
-        if (approvedQuery.docs.isNotEmpty) {
-          final approvedData = approvedQuery.docs.first.data();
-          if (approvedData['apartmentId'] is String && (approvedData['apartmentId'] as String).isNotEmpty) {
-            effectiveApartmentId = approvedData['apartmentId'] as String;
-          }
-          if (approvedData['landlordId'] is String && (approvedData['landlordId'] as String).isNotEmpty) {
-            effectiveLandlordId = approvedData['landlordId'] as String;
-          }
-          if (approvedData['apartmentTitle'] is String) {
-            effectiveApartmentTitle = approvedData['apartmentTitle'] as String;
-          }
+    if (approvedLeaseQuery.docs.isEmpty) {
+      throw 'You do not have an active approved tenancy. Maintenance requests can only be submitted for apartments you currently live in.';
+    }
+
+    String effectiveApartmentId = '';
+    String effectiveLandlordId = '';
+    String? effectiveApartmentTitle;
+
+    // Check approved leases to identify the currently active apartment where the tenant lives
+    for (final leaseDoc in approvedLeaseQuery.docs) {
+      final leaseData = leaseDoc.data();
+      final aId = (leaseData['apartmentId'] as String?)?.trim() ?? '';
+      if (aId.isNotEmpty) {
+        final aptDoc = await _firestore.collection('apartments').doc(aId).get();
+        if (aptDoc.exists &&
+            aptDoc.data()?['status'] == 'rented' &&
+            aptDoc.data()?['currentTenantId'] == effectiveTenantId) {
+          effectiveApartmentId = aId;
+          effectiveLandlordId = (aptDoc.data()?['landlordId'] as String?)?.trim() ??
+              (leaseData['landlordId'] as String?)?.trim() ?? landlordId;
+          effectiveApartmentTitle = (aptDoc.data()?['title'] as String?)?.trim() ??
+              (leaseData['apartmentTitle'] as String?)?.trim() ?? apartmentTitle;
+          break;
         }
       }
-    } catch (_) {
-      // Fallback in case of offline mode or demo apartment
+    }
+
+    // Fallback to the approved lease record
+    if (effectiveApartmentId.isEmpty) {
+      final leaseData = approvedLeaseQuery.docs.first.data();
+      effectiveApartmentId = (leaseData['apartmentId'] as String?)?.trim() ?? apartmentId;
+      effectiveLandlordId = (leaseData['landlordId'] as String?)?.trim() ?? landlordId;
+      effectiveApartmentTitle = (leaseData['apartmentTitle'] as String?)?.trim() ?? apartmentTitle;
     }
 
     final request = MaintenanceRequestModel(
@@ -70,8 +75,8 @@ class MaintenanceService {
       tenantId: effectiveTenantId,
       landlordId: effectiveLandlordId,
       apartmentId: effectiveApartmentId,
-      title: title,
-      description: description,
+      title: title.trim(),
+      description: description.trim(),
       status: 'pending',
       issueType: issueType,
       photoUrl: photoUrl,
@@ -80,7 +85,19 @@ class MaintenanceService {
       createdAt: DateTime.now(),
     );
 
-    await _maintenanceRef.add(request.toMap());
+    final docRef = await _maintenanceRef.add(request.toMap());
+
+    // Send notification to the actual landlord of that apartment (Issue 6)
+    try {
+      await _notificationService.createNotification(
+        recipientId: effectiveLandlordId,
+        type: 'maintenance_request',
+        title: 'New Maintenance Request',
+        message: '${request.tenantName ?? "Tenant"} submitted a maintenance issue: "${title.trim()}" at "${effectiveApartmentTitle ?? "your apartment"}".',
+        apartmentId: effectiveApartmentId,
+        maintenanceRequestId: docRef.id,
+      );
+    } catch (_) {}
   }
 
   // Alias
@@ -142,6 +159,18 @@ class MaintenanceService {
       'apartmentId': request.apartmentId,
       'status': newStatus,
     });
+
+    // Notify the tenant of maintenance status update (Issue 6)
+    try {
+      await _notificationService.createNotification(
+        recipientId: request.tenantId,
+        type: 'maintenance_status',
+        title: 'Maintenance Status: $newStatus',
+        message: 'Your maintenance request "${request.title}" is now marked as "$newStatus".',
+        apartmentId: request.apartmentId,
+        maintenanceRequestId: request.id,
+      );
+    } catch (_) {}
   }
 
   Future<void> deleteRequest(String requestId) async {

@@ -15,6 +15,12 @@ import 'landlord_notices_screen.dart';
 import 'landlord_rent_records_screen.dart';
 import 'landlord_requests_screen.dart';
 import 'my_apartments_screen.dart';
+import '../profile/profile_screen.dart';
+import '../notifications/notifications_inbox_screen.dart';
+import '../auth/welcome_screen.dart' show WelcomeScreen;
+import '../../models/notification_model.dart';
+import '../../services/notification_service.dart';
+import '../../widgets/rently_logo.dart';
 
 class LandlordHomeScreen extends StatelessWidget {
   final UserModel currentUser;
@@ -48,6 +54,29 @@ class LandlordHomeScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            RentlyLogo.mark(size: 20, borderRadius: 6),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Rently',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: GenXPalette.midnightBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
                           const Text(
@@ -84,24 +113,91 @@ class LandlordHomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2EBE5),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: GenXPalette.cameoWhite),
-                    ),
-                    child: Center(
-                      child: Text(
-                        currentUser.name.isNotEmpty ? currentUser.name[0].toUpperCase() : 'R',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: GenXPalette.vineLeaf,
+                  Row(
+                    children: [
+                      // Notification Bell with Live Unread Badge (Issues 7, 10, 11)
+                      StreamBuilder<List<NotificationModel>>(
+                        stream: NotificationService().streamUnreadNotifications(currentUser.uid),
+                        builder: (context, notifSnap) {
+                          final unreadCount = notifSnap.data?.length ?? 0;
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => NotificationsInboxScreen(currentUser: currentUser),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              height: 42,
+                              width: 42,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: GenXPalette.cameoWhite),
+                              ),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  const Icon(Icons.notifications_none_rounded, size: 22, color: GenXPalette.textDark),
+                                  if (unreadCount > 0)
+                                    Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFEF4444),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                                        child: Text(
+                                          unreadCount > 9 ? '9+' : '$unreadCount',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileScreen(user: currentUser)),
+                          );
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE2EBE5),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: GenXPalette.cameoWhite),
+                          ),
+                          child: Center(
+                            child: Text(
+                              currentUser.name.isNotEmpty ? currentUser.name[0].toUpperCase() : 'R',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: GenXPalette.vineLeaf,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),

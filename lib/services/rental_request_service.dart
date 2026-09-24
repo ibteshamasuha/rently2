@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/rental_request_model.dart';
+import 'notification_service.dart';
 
 class RentalRequestService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
 
   CollectionReference get _requestsRef => _firestore.collection('rentalRequests');
 
@@ -54,7 +56,19 @@ class RentalRequestService {
       createdAt: DateTime.now(),
     );
 
-    await _requestsRef.add(newRequest.toMap());
+    final docRef = await _requestsRef.add(newRequest.toMap());
+
+    // Send notification to actual apartment landlord (Issue 6)
+    try {
+      await _notificationService.createNotification(
+        recipientId: effectiveLandlordId,
+        type: 'rental_request',
+        title: 'New Rental Application',
+        message: '${newRequest.tenantName ?? "A prospective tenant"} applied for "${effectiveTitle ?? "your apartment"}".',
+        apartmentId: apartmentId,
+        rentalRequestId: docRef.id,
+      );
+    } catch (_) {}
   }
 
   // Alias for compatibility
@@ -105,6 +119,34 @@ class RentalRequestService {
     final user = _auth.currentUser;
     if (user == null) throw 'User not authenticated.';
 
+    // Prevent duplicate approvals
+    if (request.status == 'approved' && newStatus == 'approved') {
+      return;
+    }
+
+    // Verify landlord ownership (or admin)
+    if (request.landlordId != user.uid) {
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final role = userDoc.data()?['role']?.toString().toLowerCase();
+      if (role != 'admin') {
+        throw 'Unauthorized: Only the apartment owner can approve or reject rental requests.';
+      }
+    }
+
+    // If approving, ensure apartment is not already rented to a different active tenant
+    if (newStatus == 'approved') {
+      final aptDoc = await _firestore.collection('apartments').doc(request.apartmentId).get();
+      if (aptDoc.exists) {
+        final aptData = aptDoc.data();
+        if (aptData != null &&
+            aptData['status'] == 'rented' &&
+            aptData['currentTenantId'] != null &&
+            aptData['currentTenantId'] != request.tenantId) {
+          throw 'This apartment is already occupied by another active tenant.';
+        }
+      }
+    }
+
     // Enforce maintaining existing immutable IDs
     await _requestsRef.doc(request.id).update({
       'tenantId': request.tenantId,
@@ -114,13 +156,13 @@ class RentalRequestService {
     });
 
     if (newStatus == 'approved') {
+      // 1. Update apartment status to rented and assign currentTenantId (Issue 3)
       try {
         await _firestore.collection('apartments').doc(request.apartmentId).update({
           'status': 'rented',
+          'currentTenantId': request.tenantId,
         });
-      } catch (_) {
-        // If apartment status update fails due to rule permissions, request status is still updated
-      }
+      } catch (_) {}
 
       // Auto-generate initial Rent Record starting from this month
       try {
@@ -163,6 +205,56 @@ class RentalRequestService {
           'createdAt': FieldValue.serverTimestamp(),
         });
       } catch (_) {}
+
+      // 2. Automatically decline other pending requests for the same apartment
+      try {
+        final otherPending = await _requestsRef
+            .where('apartmentId', isEqualTo: request.apartmentId)
+            .where('status', isEqualTo: 'pending')
+            .get();
+
+        for (final doc in otherPending.docs) {
+          if (doc.id != request.id) {
+            await doc.reference.update({'status': 'rejected'});
+            final otherData = doc.data() as Map<String, dynamic>?;
+            final otherTenantId = otherData?['tenantId'] as String?;
+            if (otherTenantId != null && otherTenantId.isNotEmpty) {
+              await _notificationService.createNotification(
+                recipientId: otherTenantId,
+                type: 'rental_rejection',
+                title: 'Rental Application Update',
+                message: 'The apartment "${request.apartmentTitle ?? 'listing'}" has been rented to another applicant.',
+                apartmentId: request.apartmentId,
+                rentalRequestId: doc.id,
+              );
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 3. Send approval notification strictly to the approved tenant (Issue 6 & 7)
+      try {
+        await _notificationService.createNotification(
+          recipientId: request.tenantId,
+          type: 'rental_approval',
+          title: 'Rental Request Approved!',
+          message: 'Your rental request has been approved for "${request.apartmentTitle ?? 'the apartment'}".',
+          apartmentId: request.apartmentId,
+          rentalRequestId: request.id,
+        );
+      } catch (_) {}
+    } else if (newStatus == 'rejected') {
+      // Send rejection notification to tenant (Issue 6)
+      try {
+        await _notificationService.createNotification(
+          recipientId: request.tenantId,
+          type: 'rental_rejection',
+          title: 'Rental Request Declined',
+          message: 'Your rental request for "${request.apartmentTitle ?? 'the apartment'}" was declined by the landlord.',
+          apartmentId: request.apartmentId,
+          rentalRequestId: request.id,
+        );
+      } catch (_) {}
     }
   }
 
@@ -182,6 +274,8 @@ class RentalRequestService {
   }
 
   Future<void> deleteRequest(String requestId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'User not authenticated.';
     await _requestsRef.doc(requestId).delete();
   }
 }

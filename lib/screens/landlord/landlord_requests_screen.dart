@@ -11,8 +11,13 @@ import '../../widgets/status_badge.dart';
 
 class LandlordRequestsScreen extends StatelessWidget {
   final UserModel currentUser;
+  final int initialTabIndex;
 
-  const LandlordRequestsScreen({super.key, required this.currentUser});
+  const LandlordRequestsScreen({
+    super.key,
+    required this.currentUser,
+    this.initialTabIndex = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +26,7 @@ class LandlordRequestsScreen extends StatelessWidget {
 
     return DefaultTabController(
       length: 2,
+      initialIndex: initialTabIndex,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Requests & Inquiries'),

@@ -24,61 +24,6 @@ class _ApartmentListingsScreenState extends State<ApartmentListingsScreen> {
   String _selectedFilter = 'All'; // 'All', 'Available', 'Rented'
   final Set<String> _favoriteIds = {};
 
-  final List<ApartmentModel> _fallbackApartments = [
-    ApartmentModel(
-      id: 'demo-1',
-      title: '2 Bedroom Apartment',
-      location: 'Rajshahi',
-      rent: 15000,
-      status: 'available',
-      description: 'A beautiful 2 bedroom apartment near RUET. Spacious, well-ventilated and in a peaceful neighborhood.',
-      landlordId: 'landlord_1',
-      bedrooms: 2,
-      bathrooms: 1,
-      areaSqFt: 900,
-      images: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80'],
-    ),
-    ApartmentModel(
-      id: 'demo-2',
-      title: '3 Bedroom Apartment',
-      location: 'Rajshahi',
-      rent: 22000,
-      status: 'available',
-      description: 'Modern luxury 3-bedroom apartment with scenic rooftop view and elevator access.',
-      landlordId: 'landlord_2',
-      bedrooms: 3,
-      bathrooms: 2,
-      areaSqFt: 1200,
-      images: ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80'],
-    ),
-    ApartmentModel(
-      id: 'demo-3',
-      title: '1 Room Studio',
-      location: 'Rajshahi',
-      rent: 10000,
-      status: 'available',
-      description: 'Affordable cozy studio perfect for students or singles. Fully furnished with kitchen nook.',
-      landlordId: 'landlord_1',
-      bedrooms: 1,
-      bathrooms: 1,
-      areaSqFt: 500,
-      images: ['https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80'],
-    ),
-    ApartmentModel(
-      id: 'demo-4',
-      title: '2 Bedroom Apartment',
-      location: 'Rajshahi',
-      rent: 16000,
-      status: 'pending',
-      description: 'Recently renovated flat with modern tile finish, generator backup, and parking.',
-      landlordId: 'landlord_3',
-      bedrooms: 2,
-      bathrooms: 2,
-      areaSqFt: 950,
-      images: ['https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=600&q=80'],
-    ),
-  ];
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -155,15 +100,12 @@ class _ApartmentListingsScreenState extends State<ApartmentListingsScreen> {
 
           const SizedBox(height: 6),
 
-          // Stream of Apartments with fallback to demo list
+          // Stream of Apartments
           Expanded(
             child: StreamBuilder<List<ApartmentModel>>(
               stream: _apartmentService.getAllApartments(),
               builder: (context, snapshot) {
-                List<ApartmentModel> apartments = snapshot.data ?? [];
-                if (apartments.isEmpty) {
-                  apartments = _fallbackApartments;
-                }
+                final apartments = snapshot.data ?? [];
 
                 // Apply Search & Filter
                 final filtered = apartments.where((apt) {
@@ -236,9 +178,7 @@ class _ApartmentListingsScreenState extends State<ApartmentListingsScreen> {
   }
 
   Widget _buildApartmentCard(ApartmentModel apt) {
-    final photo = apt.images.isNotEmpty
-        ? apt.images.first
-        : 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80';
+    final photo = apt.images.isNotEmpty ? apt.images.first : null;
     final isFav = _favoriteIds.contains(apt.id);
 
     return Container(
@@ -276,18 +216,28 @@ class _ApartmentListingsScreenState extends State<ApartmentListingsScreen> {
               // Photo on left
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  photo,
-                  width: 96,
-                  height: 96,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 96,
-                    height: 96,
-                    color: GenXPalette.cameoWhite,
-                    child: const Icon(Icons.apartment_rounded, color: GenXPalette.midnightBlue),
-                  ),
-                ),
+                child: photo != null
+                    ? Image.network(
+                        photo,
+                        width: 96,
+                        height: 96,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 96,
+                          height: 96,
+                          color: GenXPalette.cameoWhite,
+                          child: const Icon(Icons.apartment_rounded, color: GenXPalette.midnightBlue),
+                        ),
+                      )
+                    : Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: GenXPalette.midnightBlue.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.apartment_rounded, size: 36, color: GenXPalette.midnightBlue),
+                      ),
               ),
 
               const SizedBox(width: 14),

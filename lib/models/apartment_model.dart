@@ -14,6 +14,7 @@ class ApartmentModel {
   final List<String> images;
   final List<String> features;
   final List<String> amenities;
+  final String? currentTenantId;
   final DateTime? createdAt;
 
   ApartmentModel({
@@ -30,6 +31,7 @@ class ApartmentModel {
     this.images = const [],
     this.features = const [],
     this.amenities = const [],
+    this.currentTenantId,
     this.createdAt,
   });
 
@@ -83,6 +85,7 @@ class ApartmentModel {
       images: parsedImages,
       features: parsedFeatures,
       amenities: parsedAmenities,
+      currentTenantId: data['currentTenantId'] as String?,
       createdAt: parsedDate,
     );
   }
@@ -101,6 +104,7 @@ class ApartmentModel {
       if (images.isNotEmpty) 'images': images,
       'features': features,
       'amenities': amenities,
+      if (currentTenantId != null) 'currentTenantId': currentTenantId,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
     };
   }

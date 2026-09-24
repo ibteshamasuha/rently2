@@ -77,8 +77,8 @@ service cloud.firestore {
           && (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt)
         );
 
-      // 4. Deletion: Only administrators can delete user accounts.
-      allow delete: if isAdmin();
+      // 4. Deletion: The account owner or administrator can delete the user account.
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
 
@@ -95,8 +95,10 @@ service cloud.firestore {
       // - Landlords CANNOT access another landlord's private/non-available apartments.
       allow read: if isSignedIn()
         && (
-          resource.data.status == "available"
+          resource == null
+          || resource.data.status in ["available", "Available"]
           || resource.data.landlordId == request.auth.uid
+          || ('currentTenantId' in resource.data && resource.data.currentTenantId == request.auth.uid)
           || isAdmin()
         );
 
@@ -189,7 +191,7 @@ service cloud.firestore {
         );
 
       allow create: if isSignedIn()
-        && (userRole() in ["landlord", "both"] || isAdmin())
+        && (isLandlordUser() || isAdmin())
         && request.resource.data.authorId == request.auth.uid;
 
       allow update: if isSignedIn()
@@ -311,7 +313,14 @@ service cloud.firestore {
         && request.resource.data.status == "pending"
         && (
           !exists(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId))
-          || request.resource.data.landlordId == get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId
+          || (
+            request.resource.data.landlordId == get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId
+            && (
+              !('currentTenantId' in get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data)
+              || get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.currentTenantId == request.auth.uid
+              || isAdmin()
+            )
+          )
         );
 
       // 3. Update:
@@ -400,26 +409,55 @@ service cloud.firestore {
         );
 
       // 4. Delete:
-      // Only the asking user (while pending), owning landlord, or admin can delete.
+      // Both the asking tenant and the owning landlord (or admin) can delete their inquiry (Issue 10)
       allow delete: if isSignedIn()
         && (
-          (resource.data.tenantId == request.auth.uid && resource.data.status == "pending")
+          resource.data.tenantId == request.auth.uid
           || resource.data.landlordId == request.auth.uid
           || isAdmin()
         );
     }
 
     // =========================
-    // Rent Records
+    // User-Specific Notifications
     // =========================
-    match /rent_records/{recordId} {
+
+    match /notifications/{notificationId} {
+
+      // 1. Read:
+      // A user can read ONLY notifications specifically addressed to them (recipientId == request.auth.uid).
+      // Tenant cannot read Landlord's or other tenants' notifications.
+      // Landlord cannot read another landlord's or tenant's private notifications.
       allow read: if isSignedIn()
-        && (resource.data.tenantId == request.auth.uid || resource.data.landlordId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+        && (
+          resource.data.recipientId == request.auth.uid
+          || isAdmin()
+        );
+
+      // 2. Create:
+      // Any authenticated user can generate a legitimate notification for an event.
+      // recipientId must be a valid non-empty string.
+      allow create: if isSignedIn()
+        && request.resource.data.recipientId is string
+        && request.resource.data.recipientId.size() > 0;
+
+      // 3. Update:
+      // Only the recipient can mark the notification as read.
+      // recipientId is strictly immutable.
       allow update: if isSignedIn()
-        && (resource.data.landlordId == request.auth.uid || resource.data.tenantId == request.auth.uid || isAdmin());
+        && (
+          resource.data.recipientId == request.auth.uid
+          || isAdmin()
+        )
+        && request.resource.data.recipientId == resource.data.recipientId;
+
+      // 4. Delete:
+      // User can delete their own eligible notifications (Issue 10).
       allow delete: if isSignedIn()
-        && (resource.data.landlordId == request.auth.uid || isAdmin());
+        && (
+          resource.data.recipientId == request.auth.uid
+          || isAdmin()
+        );
     }
   }
 }

@@ -26,7 +26,7 @@ class _TenantMainScreenState extends State<TenantMainScreen> {
     _pages = [
       ExploreApartmentsScreen(currentUser: widget.currentUser),
       MyRentalRequestsScreen(currentUser: widget.currentUser),
-      const TenantNoticesScreen(),
+      TenantNoticesScreen(currentUser: widget.currentUser),
       ProfileScreen(user: widget.currentUser),
     ];
   }

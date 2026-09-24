@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../data/mock_apartments.dart';
 import '../models/apartment_model.dart';
 
 class ApartmentService {
@@ -8,24 +9,37 @@ class ApartmentService {
 
   CollectionReference get _apartmentsRef => _firestore.collection('apartments');
 
-  /// Stream of all publicly available / published apartments for tenant discovery
+  /// Stream of all publicly available apartments for tenant discovery (Firestore + Catalog)
   Stream<List<ApartmentModel>> getAvailableApartments() {
-    return _apartmentsRef
-        .where('status', isEqualTo: 'available')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ApartmentModel.fromFirestore(doc))
-            .toList());
+    return _apartmentsRef.snapshots().map((snapshot) {
+      final firestoreList = snapshot.docs
+          .map((doc) => ApartmentModel.fromFirestore(doc))
+          .toList();
+      final firestoreIds = firestoreList.map((a) => a.id).toSet();
+
+      // Filter catalog to those not overridden in Firestore and available
+      final catalogAvailable = kCatalogApartments
+          .where((a) => !firestoreIds.contains(a.id) && a.isAvailable)
+          .toList();
+
+      return [...firestoreList.where((a) => a.isAvailable), ...catalogAvailable];
+    });
   }
 
   /// Tenant apartment listings discovery stream (available apartments)
   Stream<List<ApartmentModel>> getAllApartments() {
-    return _apartmentsRef
-        .where('status', isEqualTo: 'available')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ApartmentModel.fromFirestore(doc))
-            .toList());
+    return _apartmentsRef.snapshots().map((snapshot) {
+      final firestoreList = snapshot.docs
+          .map((doc) => ApartmentModel.fromFirestore(doc))
+          .toList();
+      final firestoreIds = firestoreList.map((a) => a.id).toSet();
+
+      final catalogRemaining = kCatalogApartments
+          .where((a) => !firestoreIds.contains(a.id))
+          .toList();
+
+      return [...firestoreList, ...catalogRemaining];
+    });
   }
 
   /// Scoped stream for a landlord's own apartments
@@ -41,18 +55,28 @@ class ApartmentService {
   Future<ApartmentModel?> getApartmentById(String apartmentId) async {
     try {
       final doc = await _apartmentsRef.doc(apartmentId).get();
-      if (!doc.exists) return null;
-      return ApartmentModel.fromFirestore(doc);
-    } catch (_) {
-      return null;
+      if (doc.exists && doc.data() != null) {
+        return ApartmentModel.fromFirestore(doc);
+      }
+    } catch (_) {}
+
+    // Check catalog fallback
+    for (final apt in kCatalogApartments) {
+      if (apt.id == apartmentId) return apt;
     }
+    return null;
   }
 
-  /// Live stream for a specific apartment document by its Firestore document ID
+  /// Live stream for a specific apartment document by its ID
   Stream<ApartmentModel?> streamApartment(String apartmentId) {
     return _apartmentsRef.doc(apartmentId).snapshots().map((doc) {
-      if (!doc.exists || doc.data() == null) return null;
-      return ApartmentModel.fromFirestore(doc);
+      if (doc.exists && doc.data() != null) {
+        return ApartmentModel.fromFirestore(doc);
+      }
+      for (final apt in kCatalogApartments) {
+        if (apt.id == apartmentId) return apt;
+      }
+      return null;
     });
   }
 

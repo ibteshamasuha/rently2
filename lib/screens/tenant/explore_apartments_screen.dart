@@ -116,7 +116,7 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const TenantNoticesScreen()),
+                          MaterialPageRoute(builder: (_) => TenantNoticesScreen(currentUser: widget.currentUser)),
                         );
                       },
                       child: Container(
@@ -299,7 +299,7 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const TenantNoticesScreen()),
+                          MaterialPageRoute(builder: (_) => TenantNoticesScreen(currentUser: widget.currentUser)),
                         );
                       },
                     ),

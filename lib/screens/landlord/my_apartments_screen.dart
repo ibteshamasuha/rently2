@@ -20,8 +20,23 @@ class MyApartmentsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Apartments'),
+        actions: [
+          StreamBuilder<List<ApartmentModel>>(
+            stream: apartmentService.getLandlordApartments(currentUser.uid),
+            builder: (context, snapshot) {
+              final apts = snapshot.data ?? [];
+              if (apts.isEmpty) return const SizedBox.shrink();
+              return IconButton(
+                icon: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
+                tooltip: 'Clear All My Listings (Reset to 0)',
+                onPressed: () => _confirmClearAll(context, apartmentService, apts),
+              );
+            },
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab_my_apartments',
         onPressed: () {
           Navigator.push(
             context,
@@ -196,6 +211,39 @@ class MyApartmentsScreen extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearAll(BuildContext context, ApartmentService service, List<ApartmentModel> apts) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Property Count to 0?'),
+        content: Text(
+          'This will permanently remove all ${apts.length} listing(s) created under your account so your "My Properties" count becomes 0.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              for (final apt in apts) {
+                await service.deleteApartment(apt.id);
+              }
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('All listings cleared. My Properties is now 0!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Clear All'),
           ),
         ],
       ),

@@ -121,7 +121,58 @@ class RentalRequestService {
       } catch (_) {
         // If apartment status update fails due to rule permissions, request status is still updated
       }
+
+      // Auto-generate initial Rent Record starting from this month
+      try {
+        final now = DateTime.now();
+        final currentMonth = '${_monthName(now.month)} ${now.year}';
+        num aptRent = 15000;
+        try {
+          final aptDoc = await _firestore.collection('apartments').doc(request.apartmentId).get();
+          if (aptDoc.exists && aptDoc.data() != null) {
+            final data = aptDoc.data()!;
+            if (data['rent'] is num) {
+              aptRent = data['rent'] as num;
+            }
+          }
+        } catch (_) {}
+
+        await _firestore.collection('rent_records').add({
+          'tenantId': request.tenantId,
+          'landlordId': request.landlordId,
+          'apartmentId': request.apartmentId,
+          'amount': aptRent,
+          'month': currentMonth,
+          'status': 'unpaid',
+          'apartmentTitle': request.apartmentTitle,
+          'tenantName': request.tenantName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'paidAt': null,
+        });
+
+        // Notify tenant about approval and rent commencement
+        await _firestore.collection('notices').add({
+          'title': 'Rental Request Approved! 🎉',
+          'message': 'Your rental request for "${request.apartmentTitle ?? "your apartment"}" has been approved! Your tenancy and monthly rent records start from $currentMonth.',
+          'authorId': user.uid,
+          'authorName': user.displayName ?? 'Landlord',
+          'authorRole': 'landlord',
+          'isPublic': false,
+          'targetTenantId': request.tenantId,
+          'apartmentId': request.apartmentId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
     }
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    if (month >= 1 && month <= 12) return months[month - 1];
+    return 'Current Month';
   }
 
   Future<void> cancelRequest(String requestId) async {

@@ -408,5 +408,18 @@ service cloud.firestore {
           || isAdmin()
         );
     }
+
+    // =========================
+    // Rent Records
+    // =========================
+    match /rent_records/{recordId} {
+      allow read: if isSignedIn()
+        && (resource.data.tenantId == request.auth.uid || resource.data.landlordId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn()
+        && (resource.data.landlordId == request.auth.uid || resource.data.tenantId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn()
+        && (resource.data.landlordId == request.auth.uid || isAdmin());
+    }
   }
 }

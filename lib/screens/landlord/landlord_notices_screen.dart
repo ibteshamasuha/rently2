@@ -137,6 +137,7 @@ class LandlordNoticesScreen extends StatelessWidget {
         title: const Text('Manage Notices'),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab_landlord_notices',
         onPressed: () => _showCreateNoticeModal(context, noticeService),
         icon: const Icon(Icons.add_comment),
         label: const Text('Post Notice'),

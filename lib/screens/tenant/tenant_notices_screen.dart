@@ -237,6 +237,7 @@ class TenantNoticesScreen extends StatelessWidget {
             }
 
             return NoticeItemData(
+              id: n.id,
               title: n.title,
               date: n.createdAt != null
                   ? DateFormat('MMM dd, yyyy').format(n.createdAt!)
@@ -258,7 +259,7 @@ class TenantNoticesScreen extends StatelessWidget {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final notice = items[index];
-              return Container(
+              Widget content = Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -347,6 +348,31 @@ class TenantNoticesScreen extends StatelessWidget {
                   ),
                 ),
               );
+
+              if (notice.id.isNotEmpty) {
+                return Dismissible(
+                  key: Key(notice.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: GenXPalette.danger,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.white),
+                  ),
+                  onDismissed: (_) {
+                    NoticeService().hideNotice(notice.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Notice hidden from view.')),
+                    );
+                  },
+                  child: content,
+                );
+              }
+              return content;
             },
           );
         },
@@ -356,6 +382,7 @@ class TenantNoticesScreen extends StatelessWidget {
 }
 
 class NoticeItemData {
+  final String id;
   final String title;
   final String date;
   final String preview;
@@ -366,6 +393,7 @@ class NoticeItemData {
   final bool isRentReminder;
 
   const NoticeItemData({
+    this.id = '',
     required this.title,
     required this.date,
     required this.preview,

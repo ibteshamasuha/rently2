@@ -106,6 +106,32 @@ class LandlordRequestsScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         StatusBadge(status: req.status),
+                        if (!req.isPending) ...[
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: () async {
+                              try {
+                                await requestService.hideRequest(req.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Request removed from history.')),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+                                  );
+                                }
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: const Padding(
+                              padding: EdgeInsets.all(4.0),
+                              child: Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -127,7 +153,7 @@ class LandlordRequestsScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Applicant: ${req.tenantName ?? "Tenant"}',
+                            'Tenant: ${req.tenantName ?? "Tenant"}',
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                           const SizedBox(height: 2),
@@ -135,17 +161,34 @@ class LandlordRequestsScreen extends StatelessWidget {
                             'Tenant UID: ${req.tenantId}',
                             style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                           ),
-                          if (req.message != null && req.message!.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              '"${req.message}"',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade800,
-                                fontStyle: FontStyle.italic,
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.calendar_today_outlined, size: 13, color: Colors.grey.shade700),
+                              const SizedBox(width: 5),
+                              Text(
+                                req.preferredMoveInDate != null
+                                    ? 'Preferred move-in date: ${DateFormat('MMM dd, yyyy').format(req.preferredMoveInDate!)}'
+                                    : 'Preferred move-in date: Not specified',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade800,
+                                ),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            (req.message != null && req.message!.trim().isNotEmpty)
+                                ? 'Message: "${req.message}"'
+                                : 'Message: (None)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                              fontStyle: FontStyle.italic,
                             ),
-                          ],
+                          ),
                         ],
                       ),
                     ),

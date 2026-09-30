@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../services/maintenance_service.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/apartment_image_widget.dart';
 
 class LandlordMaintenanceScreen extends StatelessWidget {
   final UserModel currentUser;
@@ -163,6 +164,35 @@ class LandlordMaintenanceScreen extends StatelessWidget {
                               'Apartment ID: ${ticket.apartmentId}',
                               style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                             ),
+                            if (ticket.photos != null && ticket.photos!.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Attached Photos:',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 80,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: ticket.photos!.length,
+                                  itemBuilder: (context, idx) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8.0),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: ApartmentImageWidget(
+                                          imageUrl: ticket.photos![idx],
+                                          width: 80,
+                                          height: 80,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),

@@ -18,6 +18,7 @@ class MaintenanceService {
     required String description,
     String? issueType,
     String? photoUrl,
+    List<String>? photos,
     String? apartmentTitle,
     String? tenantName,
   }) async {
@@ -80,6 +81,7 @@ class MaintenanceService {
       status: 'pending',
       issueType: issueType,
       photoUrl: photoUrl,
+      photos: photos,
       apartmentTitle: effectiveApartmentTitle,
       tenantName: tenantName ?? user.displayName,
       createdAt: DateTime.now(),
@@ -109,6 +111,7 @@ class MaintenanceService {
     required String description,
     String? issueType,
     String? photoUrl,
+    List<String>? photos,
     String? apartmentTitle,
     String? tenantName,
   }) => submitRequest(
@@ -119,6 +122,7 @@ class MaintenanceService {
     description: description,
     issueType: issueType,
     photoUrl: photoUrl,
+    photos: photos,
     apartmentTitle: apartmentTitle,
     tenantName: tenantName,
   );

@@ -401,6 +401,15 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
               StreamBuilder<List<ApartmentModel>>(
                 stream: _apartmentService.getAvailableApartments(),
                 builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32.0),
+                      child: Center(
+                        child: CircularProgressIndicator(color: GenXPalette.midnightBlue),
+                      ),
+                    );
+                  }
+
                   final apartments = snapshot.data ?? [];
                   if (apartments.isEmpty) {
                     return Container(
@@ -524,39 +533,64 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  photo,
-                  width: 96,
-                  height: 96,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 96,
-                    height: 96,
-                    color: GenXPalette.cameoWhite,
-                    child: const Icon(Icons.apartment_rounded, color: GenXPalette.midnightBlue),
-                  ),
-                ),
+                child: apt.isRented
+                    ? ColorFiltered(
+                        colorFilter: const ColorFilter.matrix([
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0, 0, 0, 0.7, 0,
+                        ]),
+                        child: Image.network(
+                          photo,
+                          width: 96,
+                          height: 96,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 96,
+                            height: 96,
+                            color: GenXPalette.cameoWhite,
+                            child: const Icon(Icons.apartment_rounded, color: GenXPalette.textMuted),
+                          ),
+                        ),
+                      )
+                    : Image.network(
+                        photo,
+                        width: 96,
+                        height: 96,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 96,
+                          height: 96,
+                          color: GenXPalette.cameoWhite,
+                          child: const Icon(Icons.apartment_rounded, color: GenXPalette.midnightBlue),
+                        ),
+                      ),
               ),
 
               const SizedBox(width: 14),
 
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: Opacity(
+                  opacity: apt.isRented ? 0.7 : 1.0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: GenXPalette.vineLeaf.withValues(alpha: 0.12),
+                            color: apt.isRented
+                                ? const Color(0xFFEF4444).withValues(alpha: 0.12)
+                                : GenXPalette.vineLeaf.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Text(
-                            'Available',
+                          child: Text(
+                            apt.isRented ? 'Occupied' : 'Available',
                             style: TextStyle(
-                              color: GenXPalette.vineLeaf,
+                              color: apt.isRented ? const Color(0xFFEF4444) : GenXPalette.vineLeaf,
                               fontSize: 10.5,
                               fontWeight: FontWeight.bold,
                             ),
@@ -635,7 +669,8 @@ class _ExploreApartmentsScreenState extends State<ExploreApartmentsScreen> {
                         Text('${apt.areaSqFt} sq ft', style: const TextStyle(fontSize: 11, color: GenXPalette.textMuted)),
                       ],
                     ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../data/mock_apartments.dart';
 import '../models/apartment_model.dart';
 
 class ApartmentService {
@@ -9,37 +8,24 @@ class ApartmentService {
 
   CollectionReference get _apartmentsRef => _firestore.collection('apartments');
 
-  /// Stream of all publicly available apartments for tenant discovery (Firestore + Catalog)
+  /// Stream of all publicly discoverable apartments for tenant browsing
   Stream<List<ApartmentModel>> getAvailableApartments() {
-    return _apartmentsRef.snapshots().map((snapshot) {
-      final firestoreList = snapshot.docs
-          .map((doc) => ApartmentModel.fromFirestore(doc))
-          .toList();
-      final firestoreIds = firestoreList.map((a) => a.id).toSet();
-
-      // Filter catalog to those not overridden in Firestore and available
-      final catalogAvailable = kCatalogApartments
-          .where((a) => !firestoreIds.contains(a.id) && a.isAvailable)
-          .toList();
-
-      return [...firestoreList.where((a) => a.isAvailable), ...catalogAvailable];
-    });
+    return _apartmentsRef
+        .where('status', whereIn: ['available', 'Available'])
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ApartmentModel.fromFirestore(doc))
+            .toList());
   }
 
-  /// Tenant apartment listings discovery stream (available apartments)
+  /// Tenant apartment listings discovery stream (all published available apartments)
   Stream<List<ApartmentModel>> getAllApartments() {
-    return _apartmentsRef.snapshots().map((snapshot) {
-      final firestoreList = snapshot.docs
-          .map((doc) => ApartmentModel.fromFirestore(doc))
-          .toList();
-      final firestoreIds = firestoreList.map((a) => a.id).toSet();
-
-      final catalogRemaining = kCatalogApartments
-          .where((a) => !firestoreIds.contains(a.id))
-          .toList();
-
-      return [...firestoreList, ...catalogRemaining];
-    });
+    return _apartmentsRef
+        .where('status', whereIn: ['available', 'Available'])
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ApartmentModel.fromFirestore(doc))
+            .toList());
   }
 
   /// Scoped stream for a landlord's own apartments
@@ -52,6 +38,17 @@ class ApartmentService {
             .toList());
   }
 
+  /// Scoped stream for a tenant's rented apartments
+  Stream<List<ApartmentModel>> getTenantApartments(String tenantId) {
+    return _apartmentsRef
+        .where('currentTenantId', isEqualTo: tenantId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ApartmentModel.fromFirestore(doc))
+            .where((a) => a.isRented) // Ensure only currently rented ones show up
+            .toList());
+  }
+
   Future<ApartmentModel?> getApartmentById(String apartmentId) async {
     try {
       final doc = await _apartmentsRef.doc(apartmentId).get();
@@ -59,11 +56,6 @@ class ApartmentService {
         return ApartmentModel.fromFirestore(doc);
       }
     } catch (_) {}
-
-    // Check catalog fallback
-    for (final apt in kCatalogApartments) {
-      if (apt.id == apartmentId) return apt;
-    }
     return null;
   }
 
@@ -73,33 +65,32 @@ class ApartmentService {
       if (doc.exists && doc.data() != null) {
         return ApartmentModel.fromFirestore(doc);
       }
-      for (final apt in kCatalogApartments) {
-        if (apt.id == apartmentId) return apt;
-      }
       return null;
     });
   }
 
   /// Create apartment strictly bound to the authenticated landlord UID
   Future<void> createApartment(ApartmentModel apartment) async {
-    final user = _auth.currentUser;
-    if (user == null) throw 'User not authenticated.';
+    final effectiveLandlordId = _auth.currentUser?.uid ??
+        (apartment.landlordId.trim().isNotEmpty ? apartment.landlordId.trim() : null);
+    if (effectiveLandlordId == null) throw 'User not authenticated.';
 
     final map = apartment.toMap();
     // Enforce authenticated landlord UID regardless of client payload
-    map['landlordId'] = user.uid;
+    map['landlordId'] = effectiveLandlordId;
 
     await _apartmentsRef.add(map);
   }
 
   /// Update apartment strictly bound to the authenticated landlord UID
   Future<void> updateApartment(ApartmentModel apartment) async {
-    final user = _auth.currentUser;
-    if (user == null) throw 'User not authenticated.';
+    final effectiveLandlordId = _auth.currentUser?.uid ??
+        (apartment.landlordId.trim().isNotEmpty ? apartment.landlordId.trim() : null);
+    if (effectiveLandlordId == null) throw 'User not authenticated.';
 
     final map = apartment.toMap();
     // Ensure landlordId cannot be reassigned to another landlord
-    map['landlordId'] = user.uid;
+    map['landlordId'] = effectiveLandlordId;
 
     await _apartmentsRef.doc(apartment.id).update(map);
   }

@@ -16,14 +16,21 @@ class AuthService {
     return getUserModel(user.uid);
   }
 
+  static final Map<String, UserModel> _userCache = {};
+
   Future<UserModel?> getUserModel(String uid) async {
     try {
+      if (uid.isEmpty) return null;
+      if (_userCache.containsKey(uid)) return _userCache[uid];
+
       final authUser = _auth.currentUser;
       if (authUser == null) return null;
 
       final doc = await _firestore.collection('users').doc(uid).get();
       if (!doc.exists || doc.data() == null) return null;
-      return UserModel.fromMap(doc.data()!, uid);
+      final model = UserModel.fromMap(doc.data()!, uid);
+      _userCache[uid] = model;
+      return model;
     } catch (e) {
       return null;
     }
@@ -58,6 +65,7 @@ class AuthService {
 
     if (updates.isNotEmpty) {
       await _firestore.collection('users').doc(user.uid).update(updates);
+      _userCache.remove(user.uid);
       if (name != null && name.trim().isNotEmpty) {
         await user.updateDisplayName(name.trim());
       }
@@ -167,11 +175,19 @@ class AuthService {
   Future<void> sendPasswordResetEmail(String email) async {
     try {
       final cleanEmail = email.trim();
-      if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+      final emailRegex = RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$");
+      if (cleanEmail.isEmpty || !emailRegex.hasMatch(cleanEmail)) {
         throw 'Please enter a valid email address.';
       }
       await _auth.sendPasswordResetEmail(email: cleanEmail);
     } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw 'No account found with this email address. Please check and try again.';
+      } else if (e.code == 'too-many-requests') {
+        throw 'Too many password reset attempts. Please wait a few minutes and try again.';
+      } else if (e.code == 'invalid-email') {
+        throw 'Please enter a valid email address.';
+      }
       throw _parseAuthException(e);
     } catch (e) {
       throw e.toString().replaceAll('Exception: ', '');

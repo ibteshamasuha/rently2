@@ -25,6 +25,37 @@ class RentalRequestService {
     // Enforce authenticated tenant UID (never trust client-supplied tenantId parameter)
     final effectiveTenantId = user.uid;
 
+    final docId = '${effectiveTenantId}_$apartmentId';
+
+    // Strictly enforce: A tenant can have AT MOST ONE rental request for a particular apartment.
+    // Restriction applies regardless of current status (pending, approved, or rejected).
+    // Rejection does NOT reset the request.
+    try {
+      final existingDoc = await _requestsRef.doc(docId).get();
+      if (existingDoc.exists && existingDoc.data() != null) {
+        throw 'You have already submitted a rental request for this apartment.';
+      }
+    } catch (e) {
+      if (e is String && e.contains('already submitted')) {
+        rethrow;
+      }
+    }
+
+    try {
+      final existingQuery = await _requestsRef
+          .where('tenantId', isEqualTo: effectiveTenantId)
+          .where('apartmentId', isEqualTo: apartmentId)
+          .limit(1)
+          .get();
+      if (existingQuery.docs.isNotEmpty) {
+        throw 'You have already submitted a rental request for this apartment.';
+      }
+    } catch (e) {
+      if (e is String && e.contains('already submitted')) {
+        rethrow;
+      }
+    }
+
     // Verify true apartment ownership from Firestore
     String effectiveLandlordId = landlordId;
     String? effectiveTitle = apartmentTitle;
@@ -43,20 +74,34 @@ class RentalRequestService {
       // Fallback in case of offline or demo apartment
     }
 
+    String? effectiveTenantName = tenantName;
+    if (effectiveTenantName == null || effectiveTenantName.trim().isEmpty) {
+      effectiveTenantName = user.displayName;
+    }
+    if (effectiveTenantName == null || effectiveTenantName.trim().isEmpty) {
+      try {
+        final userDoc = await _firestore.collection('users').doc(user.uid).get();
+        if (userDoc.exists && userDoc.data() != null) {
+          effectiveTenantName = userDoc.data()!['name'] as String?;
+        }
+      } catch (_) {}
+    }
+    effectiveTenantName ??= 'Tenant';
+
     final newRequest = RentalRequestModel(
-      id: '',
+      id: docId,
       tenantId: effectiveTenantId,
       landlordId: effectiveLandlordId,
       apartmentId: apartmentId,
       status: 'pending',
       message: message,
       apartmentTitle: effectiveTitle,
-      tenantName: tenantName ?? user.displayName,
+      tenantName: effectiveTenantName,
       preferredMoveInDate: preferredMoveInDate,
       createdAt: DateTime.now(),
     );
 
-    final docRef = await _requestsRef.add(newRequest.toMap());
+    await _requestsRef.doc(docId).set(newRequest.toMap());
 
     // Send notification to actual apartment landlord (Issue 6)
     try {
@@ -64,11 +109,61 @@ class RentalRequestService {
         recipientId: effectiveLandlordId,
         type: 'rental_request',
         title: 'New Rental Application',
-        message: '${newRequest.tenantName ?? "A prospective tenant"} applied for "${effectiveTitle ?? "your apartment"}".',
+        message: '$effectiveTenantName applied for "${effectiveTitle ?? "your apartment"}".',
         apartmentId: apartmentId,
-        rentalRequestId: docRef.id,
+        rentalRequestId: docId,
       );
     } catch (_) {}
+  }
+
+  /// Retrieves any existing rental request submitted by the tenant for the apartment
+  Future<RentalRequestModel?> getTenantRequestForApartment({
+    required String tenantId,
+    required String apartmentId,
+  }) async {
+    final user = _auth.currentUser;
+    final effectiveTenantId = (user != null && user.uid.isNotEmpty) ? user.uid : tenantId;
+    if (effectiveTenantId.isEmpty || apartmentId.isEmpty) return null;
+
+    final docId = '${effectiveTenantId}_$apartmentId';
+    try {
+      final doc = await _requestsRef.doc(docId).get();
+      if (doc.exists && doc.data() != null) {
+        return RentalRequestModel.fromFirestore(doc);
+      }
+    } catch (_) {}
+
+    try {
+      final query = await _requestsRef
+          .where('tenantId', isEqualTo: effectiveTenantId)
+          .where('apartmentId', isEqualTo: apartmentId)
+          .limit(1)
+          .get();
+      if (query.docs.isNotEmpty) {
+        return RentalRequestModel.fromFirestore(query.docs.first);
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Real-time stream of the tenant's request for a specific apartment
+  Stream<RentalRequestModel?> streamTenantRequestForApartment({
+    required String tenantId,
+    required String apartmentId,
+  }) {
+    final user = _auth.currentUser;
+    final effectiveTenantId = (user != null && user.uid.isNotEmpty) ? user.uid : tenantId;
+    if (effectiveTenantId.isEmpty || apartmentId.isEmpty) {
+      return Stream.value(null);
+    }
+    final docId = '${effectiveTenantId}_$apartmentId';
+    return _requestsRef.doc(docId).snapshots().map((doc) {
+      if (doc.exists && doc.data() != null) {
+        return RentalRequestModel.fromFirestore(doc);
+      }
+      return null;
+    }).handleError((_) => null);
   }
 
   // Alias for compatibility
@@ -98,6 +193,7 @@ class RentalRequestService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => RentalRequestModel.fromFirestore(doc))
+            .where((req) => !req.deletedByTenant)
             .toList());
   }
 
@@ -109,6 +205,7 @@ class RentalRequestService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => RentalRequestModel.fromFirestore(doc))
+            .where((req) => !req.deletedByLandlord)
             .toList());
   }
 
@@ -271,6 +368,37 @@ class RentalRequestService {
     final user = _auth.currentUser;
     if (user == null) throw 'User not authenticated.';
     await _requestsRef.doc(requestId).update({'status': 'cancelled'});
+  }
+
+  Future<void> hideRequest(String requestId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'User not authenticated.';
+
+    final doc = await _requestsRef.doc(requestId).get();
+    if (!doc.exists || doc.data() == null) return;
+    
+    final request = RentalRequestModel.fromFirestore(doc);
+    
+    // Check if the current user is an active tenant for this apartment
+    if (request.status == 'approved') {
+       final aptDoc = await _firestore.collection('apartments').doc(request.apartmentId).get();
+       if (aptDoc.exists) {
+         final currentTenantId = aptDoc.data()?['currentTenantId'];
+         if (currentTenantId == request.tenantId && user.uid == request.tenantId) {
+             throw 'Cannot hide an active or approved tenancy from your history while you are the current tenant.';
+         }
+       }
+    }
+
+    if (request.tenantId == user.uid) {
+       await _requestsRef.doc(requestId).update({'deletedByTenant': true});
+    } else if (request.landlordId == user.uid) {
+       await _requestsRef.doc(requestId).update({'deletedByLandlord': true});
+    } else {
+       throw 'Unauthorized to hide this request.';
+    }
+    
+    // Optional: If both have hidden it, we could delete it, but soft-delete is fine.
   }
 
   Future<void> deleteRequest(String requestId) async {

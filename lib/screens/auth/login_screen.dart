@@ -110,6 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showForgotPasswordDialog() {
     final resetEmailController = TextEditingController(text: _emailController.text.trim());
     bool isResetting = false;
+    String? errorMessage;
 
     showDialog(
       context: context,
@@ -126,16 +127,17 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Enter your email address and we will send you a password reset link.',
+                'Enter your registered email address and Firebase will send you a secure password reset link.',
                 style: TextStyle(fontSize: 13, color: GenXPalette.textMuted),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: resetEmailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email Address',
-                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                decoration: InputDecoration(
+                  labelText: 'Registered Email',
+                  prefixIcon: const Icon(Icons.mail_outline_rounded),
+                  errorText: errorMessage,
                 ),
               ),
             ],
@@ -149,7 +151,10 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: isResetting
                   ? null
                   : () async {
-                      setDialogState(() => isResetting = true);
+                      setDialogState(() {
+                        isResetting = true;
+                        errorMessage = null;
+                      });
                       try {
                         await _authService.sendPasswordResetEmail(resetEmailController.text);
                         if (!dialogCtx.mounted) return;
@@ -157,14 +162,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('Password reset email sent! Please check your inbox.'),
+                            content: const Text('Password reset email sent! Check your inbox for the link to set a new password.'),
                             backgroundColor: GenXPalette.vineLeaf,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         );
                       } catch (err) {
-                        setDialogState(() => isResetting = false);
+                        setDialogState(() {
+                          isResetting = false;
+                          errorMessage = err.toString();
+                        });
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(

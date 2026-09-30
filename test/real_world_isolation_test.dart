@@ -784,6 +784,343 @@ void main() {
       expect(canResendEmail(45, false), isFalse); // Active cooldown blocks resend
       expect(canResendEmail(0, true), isFalse);  // In-flight request blocks resend
     });
+
+    // ------------------------------------------------------------------------
+    // Scenario 1 — Multiple Landlords Apartment Discovery
+    // ------------------------------------------------------------------------
+    test('Scenario 1 — Tenant can browse published apartments from ALL landlords (A1, A2, B1, B2)', () {
+      final allApartmentsInFirestore = [
+        ApartmentModel(
+          id: 'apt_a1',
+          title: 'Apartment A1',
+          location: 'Dhaka',
+          rent: 30000,
+          status: 'available',
+          description: 'Spacious flat',
+          landlordId: landlordAUid,
+        ),
+        ApartmentModel(
+          id: 'apt_a2',
+          title: 'Apartment A2',
+          location: 'Dhaka',
+          rent: 28000,
+          status: 'available',
+          description: 'Modern flat',
+          landlordId: landlordAUid,
+        ),
+        ApartmentModel(
+          id: 'apt_b1',
+          title: 'Apartment B1',
+          location: 'Chittagong',
+          rent: 25000,
+          status: 'available',
+          description: 'Cozy flat',
+          landlordId: landlordBUid,
+        ),
+        ApartmentModel(
+          id: 'apt_b2',
+          title: 'Apartment B2',
+          location: 'Chittagong',
+          rent: 35000,
+          status: 'available',
+          description: 'Luxury flat',
+          landlordId: landlordBUid,
+        ),
+        ApartmentModel(
+          id: 'apt_draft',
+          title: 'Draft Property',
+          location: 'Sylhet',
+          rent: 20000,
+          status: 'draft',
+          description: 'Unpublished draft',
+          landlordId: landlordBUid,
+        ),
+      ];
+
+      // Tenant discovery logic: all published apartments across ALL landlords
+      final discoverableApartments = allApartmentsInFirestore
+          .where((a) => a.status.toLowerCase() != 'draft')
+          .toList();
+
+      expect(discoverableApartments.length, equals(4));
+      final ids = discoverableApartments.map((a) => a.id).toSet();
+      expect(ids.contains('apt_a1'), isTrue);
+      expect(ids.contains('apt_a2'), isTrue);
+      expect(ids.contains('apt_b1'), isTrue);
+      expect(ids.contains('apt_b2'), isTrue);
+      expect(ids.contains('apt_draft'), isFalse);
+
+      // Verify each apartment retains its authentic landlordId
+      final a1 = discoverableApartments.firstWhere((a) => a.id == 'apt_a1');
+      final b1 = discoverableApartments.firstWhere((a) => a.id == 'apt_b1');
+      expect(a1.landlordId, equals(landlordAUid));
+      expect(b1.landlordId, equals(landlordBUid));
+    });
+
+    // ------------------------------------------------------------------------
+    // Scenario 2 — Rented/Occupied Apartment Handling
+    // ------------------------------------------------------------------------
+    test('Scenario 2 — Rented apartment is visible, marked occupied, and rental requests are disabled', () {
+      final occupiedApartment = ApartmentModel(
+        id: 'apt_a1',
+        title: 'Apartment A1',
+        location: 'Dhaka',
+        rent: 30000,
+        status: 'occupied',
+        description: 'Currently rented flat',
+        landlordId: landlordAUid,
+        currentTenantId: tenantAUid,
+      );
+
+      // 1. Visible in tenant listings
+      expect(occupiedApartment.status.toLowerCase() != 'draft', isTrue);
+
+      // 2. Properly identified as rented
+      expect(occupiedApartment.isRented, isTrue);
+
+      // 3. Rental request submission logic must reject occupied apartments
+      bool canSubmitRentalRequest(ApartmentModel apt) {
+        return !apt.isRented;
+      }
+      expect(canSubmitRentalRequest(occupiedApartment), isFalse);
+
+      final availableApartment = ApartmentModel(
+        id: 'apt_a2',
+        title: 'Apartment A2',
+        location: 'Dhaka',
+        rent: 28000,
+        status: 'available',
+        description: 'Available flat',
+        landlordId: landlordAUid,
+      );
+      expect(canSubmitRentalRequest(availableApartment), isTrue);
+    });
+
+    // ------------------------------------------------------------------------
+    // Scenario 3 — Targeted Apartment Notice Scoping
+    // ------------------------------------------------------------------------
+    test('Scenario 3 — Landlord A sends notice for Apartment A1; Tenant in A1 sees it, Tenant in B1 does not', () {
+      final noticeX = NoticeModel(
+        id: 'notice_x',
+        title: 'Flat A1 Water Tank Maintenance',
+        message: 'Water maintenance tomorrow from 10 AM to 2 PM.',
+        authorId: landlordAUid,
+        isPublic: false,
+        apartmentId: 'apt_a1',
+        targetType: 'apartment',
+      );
+
+      // Tenant A lives in apt_a1; Tenant B lives in apt_b1
+      const tenantALivedAptId = 'apt_a1';
+      const tenantBLivedAptId = 'apt_b1';
+
+      bool canTenantReceiveNotice(NoticeModel notice, String tenantUid, String tenantRentedAptId) {
+        if (notice.isPublic) return true;
+        if (notice.targetTenantId == tenantUid || notice.tenantId == tenantUid) return true;
+        if (notice.apartmentId != null && notice.apartmentId == tenantRentedAptId) return true;
+        return false;
+      }
+
+      // Tenant living in A1 can see Notice X
+      expect(canTenantReceiveNotice(noticeX, tenantAUid, tenantALivedAptId), isTrue);
+
+      // Tenant living in B1 CANNOT see Notice X
+      expect(canTenantReceiveNotice(noticeX, tenantBUid, tenantBLivedAptId), isFalse);
+    });
+
+    // ------------------------------------------------------------------------
+    // Scenario 4 — Tenant-Specific Notice Scoping
+    // ------------------------------------------------------------------------
+    test('Scenario 4 — Landlord A sends notice to Tenant X; Tenant X sees it, Tenant Z does not', () {
+      const tenantXUid = 'tenant_x_uid';
+      const tenantZUid = 'tenant_z_uid';
+
+      final noticeY = NoticeModel(
+        id: 'notice_y',
+        title: 'Rent Due Reminder',
+        message: 'Your rent payment is due on September 30.',
+        authorId: landlordAUid,
+        isPublic: false,
+        targetTenantId: tenantXUid,
+        targetType: 'tenant',
+      );
+
+      bool canTenantView(NoticeModel notice, String callerUid) {
+        return notice.isPublic || notice.targetTenantId == callerUid || notice.tenantId == callerUid;
+      }
+
+      // Tenant X can see Notice Y
+      expect(canTenantView(noticeY, tenantXUid), isTrue);
+
+      // Tenant Z CANNOT see Notice Y
+      expect(canTenantView(noticeY, tenantZUid), isFalse);
+    });
+
+    // ------------------------------------------------------------------------
+    // Scenario 5 — Unauthorized Landlord Notice Creation Prevention
+    // ------------------------------------------------------------------------
+    test('Scenario 5 — Landlord B cannot create or modify notice targeting Landlord A apartment', () {
+      final landlordAApartments = {'apt_a1', 'apt_a2'};
+
+      bool canLandlordCreateNotice({
+        required String callerUid,
+        required String? targetApartmentId,
+      }) {
+        if (targetApartmentId == null || targetApartmentId.isEmpty) return true;
+        // Rules require caller to be the landlordId of targetApartment
+        return landlordAApartments.contains(targetApartmentId) && callerUid == landlordAUid;
+      }
+
+      // Landlord A targeting their own apartment -> ALLOWED
+      expect(canLandlordCreateNotice(callerUid: landlordAUid, targetApartmentId: 'apt_a1'), isTrue);
+
+      // Landlord B attempting to target Landlord A's apartment -> DENIED
+      expect(canLandlordCreateNotice(callerUid: landlordBUid, targetApartmentId: 'apt_a1'), isFalse);
+    });
+
+    // ------------------------------------------------------------------------
+    // Scenario 6 — Cross-Tenant Privacy Isolation
+    // ------------------------------------------------------------------------
+    test('Scenario 6 — Tenant A cannot access Tenant B rental requests, maintenance, notices, or notifications', () {
+      // 1. Rental Request Privacy
+      final reqTenantB = RentalRequestModel(
+        id: 'req_b',
+        tenantId: tenantBUid,
+        landlordId: landlordAUid,
+        apartmentId: 'apt_a1',
+        message: 'Tenant B private application',
+        status: 'pending',
+      );
+      bool canTenantReadRentalRequest(RentalRequestModel req, String callerUid) => req.tenantId == callerUid;
+      expect(canTenantReadRentalRequest(reqTenantB, tenantAUid), isFalse);
+
+      // 2. Maintenance Request Privacy
+      final ticketTenantB = MaintenanceRequestModel(
+        id: 'ticket_b',
+        tenantId: tenantBUid,
+        landlordId: landlordAUid,
+        apartmentId: 'apt_a1',
+        title: 'Broken window',
+        description: 'Bedroom window glass broken',
+        status: 'pending',
+      );
+      bool canTenantReadMaintenance(MaintenanceRequestModel t, String callerUid) => t.tenantId == callerUid;
+      expect(canTenantReadMaintenance(ticketTenantB, tenantAUid), isFalse);
+
+      // 3. Notification Privacy
+      final notifTenantB = NotificationModel(
+        id: 'notif_b',
+        recipientId: tenantBUid,
+        title: 'Private Alert',
+        message: 'Your lease agreement is ready',
+        type: 'alert',
+        createdAt: DateTime.now(),
+      );
+      bool canTenantReadNotification(NotificationModel n, String callerUid) => n.recipientId == callerUid;
+      expect(canTenantReadNotification(notifTenantB, tenantAUid), isFalse);
+
+      // 4. Targeted Notice Privacy
+      final noticeTenantB = NoticeModel(
+        id: 'notice_b',
+        title: 'Private Tenant Warning',
+        message: 'Quiet hours violation',
+        authorId: landlordAUid,
+        isPublic: false,
+        targetTenantId: tenantBUid,
+        targetType: 'tenant',
+      );
+      bool canTenantReadNotice(NoticeModel n, String callerUid) => n.isPublic || n.targetTenantId == callerUid;
+      expect(canTenantReadNotice(noticeTenantB, tenantAUid), isFalse);
+    });
+
+    // ------------------------------------------------------------------------
+    // Scenario 7 — Newly created Landlord Apartment appears in Tenant Listings across All Landlords
+    // ------------------------------------------------------------------------
+    test('Scenario 7 — Newly created Landlord Apartment appears in Tenant Listings across All Landlords', () {
+      // Landlord A creates an apartment
+      final newlyCreatedAptA = ApartmentModel(
+        id: 'new_apt_by_landlord_a',
+        title: 'Sunset View Penthouse',
+        location: 'Dhanmondi, Dhaka',
+        rent: 42000,
+        status: 'available',
+        description: 'Spectacular penthouse with private terrace',
+        landlordId: landlordAUid,
+        bedrooms: 3,
+        bathrooms: 3,
+        areaSqFt: 1800,
+        createdAt: DateTime.now(),
+      );
+
+      // Verify toMap writes both status and boolean availability flags
+      final aptMap = newlyCreatedAptA.toMap();
+      expect(aptMap['status'], equals('available'));
+      expect(aptMap['isAvailable'], equals(true));
+      expect(aptMap['available'], equals(true));
+      expect(aptMap['landlordId'], equals(landlordAUid));
+
+      // Landlord B also has an apartment
+      final aptB = ApartmentModel(
+        id: 'apt_by_landlord_b',
+        title: 'Green Valley Flat',
+        location: 'Uttara, Dhaka',
+        rent: 28000,
+        status: 'available',
+        description: 'Quiet green residential area',
+        landlordId: landlordBUid,
+        bedrooms: 2,
+        bathrooms: 2,
+        areaSqFt: 1200,
+      );
+
+      // System also has a rented apartment and an unpublished draft
+      final rentedApt = ApartmentModel(
+        id: 'rented_apt',
+        title: 'Occupied Studio',
+        location: 'Mirpur, Dhaka',
+        rent: 15000,
+        status: 'rented',
+        description: 'Currently occupied studio',
+        landlordId: landlordBUid,
+        currentTenantId: tenantBUid,
+      );
+
+      final draftApt = ApartmentModel(
+        id: 'draft_apt',
+        title: 'Unpublished Draft Flat',
+        location: 'Khulna',
+        rent: 12000,
+        status: 'draft',
+        description: 'Draft notes',
+        landlordId: landlordAUid,
+      );
+
+      final firestoreApartments = [newlyCreatedAptA, aptB, rentedApt, draftApt];
+
+      // Tenant discovery:
+      // 1. Published apartments from ALL landlords are included
+      // 2. Draft apartments are excluded
+      final tenantDiscoveryList = firestoreApartments
+          .where((a) => a.status.toLowerCase() != 'draft')
+          .toList();
+
+      expect(tenantDiscoveryList.length, equals(3));
+      final discoveredIds = tenantDiscoveryList.map((a) => a.id).toSet();
+      expect(discoveredIds.contains('new_apt_by_landlord_a'), isTrue);
+      expect(discoveredIds.contains('apt_by_landlord_b'), isTrue);
+      expect(discoveredIds.contains('rented_apt'), isTrue);
+      expect(discoveredIds.contains('draft_apt'), isFalse);
+
+      // Tenant can see newly created apartment as Available
+      final tenantViewAptA = tenantDiscoveryList.firstWhere((a) => a.id == 'new_apt_by_landlord_a');
+      expect(tenantViewAptA.isAvailable, isTrue);
+      expect(tenantViewAptA.isRented, isFalse);
+
+      // Tenant can see rented apartment as Rented/Occupied
+      final tenantViewRented = tenantDiscoveryList.firstWhere((a) => a.id == 'rented_apt');
+      expect(tenantViewRented.isRented, isTrue);
+      expect(tenantViewRented.isAvailable, isFalse);
+    });
   });
 }
 

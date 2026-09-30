@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/maintenance_service.dart';
+import '../../services/storage_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/file_picker_helper.dart';
 
 class TenantMaintenanceScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -18,7 +20,7 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
   final TextEditingController _descriptionController = TextEditingController();
 
   String? _selectedIssueType;
-  bool _hasPhoto = false;
+  final List<String> _selectedPhotos = [];
   bool _isSubmitting = false;
 
   final List<String> _issueTypes = const [
@@ -67,6 +69,18 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      final storageService = StorageService();
+      final uploadedPhotos = <String>[];
+      for (int i = 0; i < _selectedPhotos.length; i++) {
+        final img = _selectedPhotos[i];
+        if (img.startsWith('data:image')) {
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final path = 'maintenance/${widget.currentUser.uid}_${timestamp}_$i.jpg';
+          final url = await storageService.uploadBase64Image(img, path);
+          uploadedPhotos.add(url);
+        }
+      }
+
       await _maintenanceService.createTicket(
         tenantId: widget.currentUser.uid,
         landlordId: targetLandlordId,
@@ -74,6 +88,7 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
         title: '$_selectedIssueType Issue',
         description: _descriptionController.text.trim(),
         issueType: _selectedIssueType,
+        photos: uploadedPhotos,
         apartmentTitle: targetAptTitle,
         tenantName: widget.currentUser.name,
       );
@@ -102,7 +117,7 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
       _descriptionController.clear();
       setState(() {
         _selectedIssueType = null;
-        _hasPhoto = false;
+        _selectedPhotos.clear();
       });
     } catch (e) {
       if (!mounted) return;
@@ -334,20 +349,21 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
 
                   // Upload Photo Box
                   const Text(
-                    'Upload Photo (optional)',
+                    'Upload Photos (optional)',
                     style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: GenXPalette.textDark),
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: hasActiveTenancy
-                        ? () {
-                            setState(() => _hasPhoto = !_hasPhoto);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(_hasPhoto ? 'Photo selected!' : 'Photo removed.'),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
+                        ? () async {
+                            try {
+                              final picked = await pickImagesFromDevice();
+                              if (picked.isNotEmpty) {
+                                setState(() {
+                                  _selectedPhotos.addAll(picked);
+                                });
+                              }
+                            } catch (_) {}
                           }
                         : null,
                     child: Container(
@@ -356,7 +372,7 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
                         color: hasActiveTenancy ? Colors.white : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: _hasPhoto ? GenXPalette.vineLeaf : GenXPalette.cameoWhite,
+                          color: _selectedPhotos.isNotEmpty ? GenXPalette.vineLeaf : GenXPalette.cameoWhite,
                           width: 1.5,
                         ),
                       ),
@@ -365,16 +381,16 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              _hasPhoto ? Icons.check_circle_rounded : Icons.camera_alt_outlined,
+                              _selectedPhotos.isNotEmpty ? Icons.check_circle_rounded : Icons.camera_alt_outlined,
                               size: 30,
-                              color: _hasPhoto ? GenXPalette.vineLeaf : GenXPalette.textMuted,
+                              color: _selectedPhotos.isNotEmpty ? GenXPalette.vineLeaf : GenXPalette.textMuted,
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              _hasPhoto ? 'Photo Attached (Tap to remove)' : 'Tap to upload',
+                              _selectedPhotos.isNotEmpty ? '${_selectedPhotos.length} Photo(s) Attached (Tap to add more)' : 'Tap to upload photos',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: _hasPhoto ? GenXPalette.vineLeaf : GenXPalette.textMuted,
+                                color: _selectedPhotos.isNotEmpty ? GenXPalette.vineLeaf : GenXPalette.textMuted,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

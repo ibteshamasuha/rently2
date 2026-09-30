@@ -233,7 +233,10 @@ class LandlordHomeScreen extends StatelessWidget {
                     child: StreamBuilder<List<RentalRequestModel>>(
                       stream: requestService.getLandlordRequests(currentUser.uid),
                       builder: (context, snapshot) {
-                        final count = (snapshot.data?.length ?? 0).toString();
+                        final pendingCount = (snapshot.data ?? [])
+                            .where((r) => r.isPending || r.status.toLowerCase() == 'pending')
+                            .length;
+                        final count = pendingCount.toString();
                         return _buildStatCard(
                           number: count,
                           label: 'Rental Requests',

@@ -37,10 +37,11 @@ class ApartmentModel {
 
   bool get isAvailable => status.toLowerCase() == 'available';
   bool get isPending => status.toLowerCase() == 'pending';
-  bool get isRented => status.toLowerCase() == 'rented';
+  bool get isRented => status.toLowerCase() == 'rented' || status.toLowerCase() == 'occupied';
 
   factory ApartmentModel.fromFirestore(DocumentSnapshot doc) {
-    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+    final rawMap = (doc.data() as Map<String, dynamic>?) ?? {};
+    final data = rawMap.map((k, v) => MapEntry(k.trim(), v));
     DateTime? parsedDate;
     if (data['createdAt'] is Timestamp) {
       parsedDate = (data['createdAt'] as Timestamp).toDate();
@@ -71,12 +72,23 @@ class ApartmentModel {
           .toList();
     }
 
+    // Resolve status safely handling status, occupancyStatus, and boolean availability flags
+    final rawStatus = data['status'] ?? data['occupancyStatus'];
+    String resolvedStatus = 'available';
+    if (rawStatus is String && rawStatus.trim().isNotEmpty) {
+      resolvedStatus = rawStatus.trim().toLowerCase();
+    } else if (data['isAvailable'] == false || data['available'] == false) {
+      resolvedStatus = 'rented';
+    } else if (data['isAvailable'] == true || data['available'] == true) {
+      resolvedStatus = 'available';
+    }
+
     return ApartmentModel(
       id: doc.id,
-      title: data['title'] ?? '',
-      location: data['location'] ?? 'Rajshahi',
-      rent: data['rent'] ?? 0,
-      status: data['status'] ?? 'available',
+      title: (data['title'] ?? '').toString().trim(),
+      location: (data['location'] ?? 'Rajshahi').toString().trim(),
+      rent: data['rent'] ?? (data['price'] ?? 0),
+      status: resolvedStatus,
       description: data['description'] ?? '',
       landlordId: data['landlordId'] ?? '',
       bedrooms: data['bedrooms'] ?? 2,
@@ -96,6 +108,8 @@ class ApartmentModel {
       'location': location,
       'rent': rent,
       'status': status,
+      'isAvailable': isAvailable,
+      'available': isAvailable,
       'description': description,
       'landlordId': landlordId,
       'bedrooms': bedrooms,

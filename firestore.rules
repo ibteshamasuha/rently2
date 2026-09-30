@@ -32,6 +32,7 @@ service cloud.firestore {
     function isTenantUser() {
       return isSignedIn() && (
         !isExistingUser()
+        || !('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data)
         || userRole() in ["tenant", "both", "Tenant", "Both"]
         || isAdmin()
       );
@@ -40,6 +41,7 @@ service cloud.firestore {
     function isLandlordUser() {
       return isSignedIn() && (
         !isExistingUser()
+        || !('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data)
         || userRole() in ["landlord", "both", "Landlord", "Both"]
         || isAdmin()
       );
@@ -52,9 +54,17 @@ service cloud.firestore {
 
     match /users/{userId} {
       // 1. Strict read isolation:
-      // Only the authenticated owner of this UID or an admin may read this document.
-      // Tenants cannot read other tenants; landlords cannot read other landlords.
-      allow read: if isOwner(userId) || isAdmin();
+      // - Account owner and Admins can read the user document.
+      // - Signed-in tenants can read published landlord profiles (to identify who owns/manages apartments).
+      // - Signed-in landlords can read tenant profiles for legitimate rental management of applicants & tenancies.
+      // - Tenants CANNOT read other unrelated tenants.
+      allow read: if isSignedIn()
+        && (
+          isOwner(userId)
+          || isAdmin()
+          || resource.data.role in ["landlord", "both", "Landlord", "Both"]
+          || userRole() in ["landlord", "both", "Landlord", "Both"]
+        );
 
       // 2. Account creation:
       // Must match the authenticated UID. Self-service cannot assign "admin" role.
@@ -181,33 +191,76 @@ service cloud.firestore {
 
     match /notices/{noticeId} {
 
-      // Landlords read notices they authored; tenants read public or targeted notices; admin reads all
+      // Landlords read notices they authored; tenants read public notices, notices targeted to their UID, or notices for their rented apartment; admin reads all
       allow read: if isSignedIn()
         && (
           resource.data.authorId == request.auth.uid
+          || ('landlordId' in resource.data && resource.data.landlordId == request.auth.uid)
           || resource.data.isPublic == true
           || resource.data.targetTenantId == request.auth.uid
+          || ('tenantId' in resource.data && resource.data.tenantId == request.auth.uid)
+          || ('targetTenantIds' in resource.data && request.auth.uid in resource.data.targetTenantIds)
+          || (
+            'apartmentId' in resource.data
+            && resource.data.apartmentId != null
+            && resource.data.apartmentId != ""
+            && exists(/databases/$(database)/documents/apartments/$(resource.data.apartmentId))
+            && get(/databases/$(database)/documents/apartments/$(resource.data.apartmentId)).data.currentTenantId == request.auth.uid
+          )
           || isAdmin()
         );
 
+      // Landlord can create a notice only with their own UID, and if an apartment is targeted, they must own that apartment
       allow create: if isSignedIn()
         && (isLandlordUser() || isAdmin())
-        && request.resource.data.authorId == request.auth.uid;
+        && (
+          request.resource.data.authorId == request.auth.uid
+          || ('landlordId' in request.resource.data && request.resource.data.landlordId == request.auth.uid)
+        )
+        && (
+          !('apartmentId' in request.resource.data)
+          || request.resource.data.apartmentId == null
+          || request.resource.data.apartmentId == ""
+          || (
+            exists(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId))
+            && get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId == request.auth.uid
+          )
+          || isAdmin()
+        );
 
+      // Only the authoring landlord or admin can update, preserving apartment ownership constraints
       allow update: if isSignedIn()
         && (
           isAdmin()
           || (
             userRole() in ["landlord", "both"]
-            && resource.data.authorId == request.auth.uid
-            && request.resource.data.authorId == resource.data.authorId
+            && (
+              resource.data.authorId == request.auth.uid
+              || ('landlordId' in resource.data && resource.data.landlordId == request.auth.uid)
+            )
+            && (
+              !('apartmentId' in request.resource.data)
+              || request.resource.data.apartmentId == null
+              || request.resource.data.apartmentId == ""
+              || (
+                exists(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId))
+                && get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId == request.auth.uid
+              )
+            )
           )
         );
 
+      // Only the authoring landlord or admin can delete
       allow delete: if isSignedIn()
         && (
           isAdmin()
-          || (userRole() in ["landlord", "both"] && resource.data.authorId == request.auth.uid)
+          || (
+            userRole() in ["landlord", "both"]
+            && (
+              resource.data.authorId == request.auth.uid
+              || ('landlordId' in resource.data && resource.data.landlordId == request.auth.uid)
+            )
+          )
         );
     }
 
@@ -225,7 +278,8 @@ service cloud.firestore {
       // - Admin has broad administrative read access.
       allow read: if isSignedIn()
         && (
-          resource.data.tenantId == request.auth.uid
+          resource == null
+          || resource.data.tenantId == request.auth.uid
           || resource.data.landlordId == request.auth.uid
           || isAdmin()
         );
@@ -235,13 +289,20 @@ service cloud.firestore {
       // - Tenant cannot pretend to be another tenant.
       // - Initial status must be 'pending'.
       // - Prevents landlordId tampering: if apartment exists in Firestore, landlordId MUST match the apartment's actual landlordId.
+      // - Enforces at most ONE rental request per tenant per apartment across all states (pending, approved, rejected)
+      // - Bound to deterministic requestId format: $(request.auth.uid + "_" + request.resource.data.apartmentId)
       allow create: if isSignedIn()
         && (isTenantUser() || isAdmin())
         && request.resource.data.tenantId == request.auth.uid
         && request.resource.data.status == "pending"
         && (
           !exists(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId))
+          || !('landlordId' in get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data)
           || request.resource.data.landlordId == get(/databases/$(database)/documents/apartments/$(request.resource.data.apartmentId)).data.landlordId
+        )
+        && (
+          isAdmin()
+          || requestId == (request.auth.uid + "_" + request.resource.data.apartmentId)
         );
 
       // 3. Update:

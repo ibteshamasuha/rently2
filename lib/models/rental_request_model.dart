@@ -12,6 +12,9 @@ class RentalRequestModel {
   final DateTime? preferredMoveInDate;
   final DateTime? createdAt;
 
+  final bool deletedByTenant;
+  final bool deletedByLandlord;
+
   RentalRequestModel({
     required this.id,
     required this.tenantId,
@@ -23,6 +26,8 @@ class RentalRequestModel {
     this.tenantName,
     this.preferredMoveInDate,
     this.createdAt,
+    this.deletedByTenant = false,
+    this.deletedByLandlord = false,
   });
 
   bool get isPending => status.toLowerCase() == 'pending';
@@ -56,6 +61,8 @@ class RentalRequestModel {
       tenantName: data['tenantName'],
       preferredMoveInDate: moveInDate,
       createdAt: parsedDate,
+      deletedByTenant: data['deletedByTenant'] ?? false,
+      deletedByLandlord: data['deletedByLandlord'] ?? false,
     );
   }
 
@@ -65,11 +72,13 @@ class RentalRequestModel {
       'landlordId': landlordId,
       'apartmentId': apartmentId,
       'status': status,
-      if (message != null && message!.isNotEmpty) 'message': message,
+      'message': message ?? '',
       if (apartmentTitle != null) 'apartmentTitle': apartmentTitle,
       if (tenantName != null) 'tenantName': tenantName,
-      if (preferredMoveInDate != null) 'preferredMoveInDate': Timestamp.fromDate(preferredMoveInDate!),
+      'preferredMoveInDate': preferredMoveInDate != null ? Timestamp.fromDate(preferredMoveInDate!) : null,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
+      'deletedByTenant': deletedByTenant,
+      'deletedByLandlord': deletedByLandlord,
     };
   }
 }

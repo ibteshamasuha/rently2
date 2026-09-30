@@ -10,6 +10,7 @@ class MaintenanceRequestModel {
   final String status; // 'pending', 'in-progress', 'completed', 'rejected'
   final String? issueType; // Plumbing, Electrical, HVAC, Appliance, Structural, Other
   final String? photoUrl;
+  final List<String>? photos;
   final String? apartmentTitle;
   final String? tenantName;
   final DateTime? createdAt;
@@ -24,6 +25,7 @@ class MaintenanceRequestModel {
     required this.status,
     this.issueType,
     this.photoUrl,
+    this.photos,
     this.apartmentTitle,
     this.tenantName,
     this.createdAt,
@@ -53,6 +55,7 @@ class MaintenanceRequestModel {
       status: data['status'] ?? 'pending',
       issueType: data['issueType'] ?? 'General',
       photoUrl: data['photoUrl'],
+      photos: data['photos'] != null ? List<String>.from(data['photos']) : null,
       apartmentTitle: data['apartmentTitle'],
       tenantName: data['tenantName'],
       createdAt: parsedDate,
@@ -66,9 +69,10 @@ class MaintenanceRequestModel {
       'apartmentId': apartmentId,
       'title': title,
       'description': description,
-      'status': status,
+      if (status.isNotEmpty) 'status': status,
       if (issueType != null) 'issueType': issueType,
       if (photoUrl != null) 'photoUrl': photoUrl,
+      if (photos != null && photos!.isNotEmpty) 'photos': photos,
       if (apartmentTitle != null) 'apartmentTitle': apartmentTitle,
       if (tenantName != null) 'tenantName': tenantName,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),

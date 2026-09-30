@@ -5,6 +5,7 @@ import '../../services/apartment_service.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/apartment_image_widget.dart';
 import '../../utils/file_picker_helper.dart';
+import '../../services/storage_service.dart';
 
 class AddEditApartmentScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -23,6 +24,7 @@ class AddEditApartmentScreen extends StatefulWidget {
 class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
   final _formKey = GlobalKey<FormState>();
   final _apartmentService = ApartmentService();
+  final _scrollController = ScrollController();
 
   late final TextEditingController _titleController;
   late final TextEditingController _locationController;
@@ -79,6 +81,7 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _titleController.dispose();
     _locationController.dispose();
     _rentController.dispose();
@@ -90,19 +93,61 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
   }
 
   Future<void> _handleSave() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final rentVal = num.tryParse(_rentController.text.trim());
-    if (rentVal == null || rentVal <= 0) {
+    if (!_formKey.currentState!.validate()) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid monthly rent amount.')),
+        const SnackBar(
+          content: Text('Please fill in the required fields marked in red above.'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
+    final rawRent = _rentController.text
+        .replaceAll(',', '')
+        .replaceAll('৳', '')
+        .replaceAll('\$', '')
+        .replaceAll(' ', '')
+        .trim();
+    final rentVal = num.tryParse(rawRent);
+    if (rentVal == null || rentVal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid monthly rent amount (e.g. 15000).'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final descText = _descController.text.trim().isNotEmpty
+        ? _descController.text.trim()
+        : '${_titleController.text.trim()} located at ${_locationController.text.trim()}.';
+
     setState(() => _isLoading = true);
 
     try {
+      final storageService = StorageService();
+      final uploadedUrls = <String>[];
+      for (int i = 0; i < _apartmentImages.length; i++) {
+        final img = _apartmentImages[i];
+        if (img.startsWith('data:image')) {
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final path = 'apartments/${widget.currentUser.uid}_${timestamp}_$i.jpg';
+          final url = await storageService.uploadBase64Image(img, path);
+          uploadedUrls.add(url);
+        } else {
+          uploadedUrls.add(img);
+        }
+      }
+
       if (_isEditing) {
         final updatedApt = ApartmentModel(
           id: widget.apartment!.id,
@@ -110,12 +155,12 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
           location: _locationController.text.trim(),
           rent: rentVal,
           status: _status,
-          description: _descController.text.trim(),
+          description: descText,
           landlordId: widget.apartment!.landlordId,
           bedrooms: widget.apartment!.bedrooms,
           bathrooms: widget.apartment!.bathrooms,
           areaSqFt: widget.apartment!.areaSqFt,
-          images: _apartmentImages,
+          images: uploadedUrls,
           features: _selectedFeatures.toList(),
           amenities: _selectedAmenities.toList(),
           createdAt: widget.apartment!.createdAt,
@@ -128,9 +173,9 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
           location: _locationController.text.trim(),
           rent: rentVal,
           status: _status,
-          description: _descController.text.trim(),
+          description: descText,
           landlordId: widget.currentUser.uid,
-          images: _apartmentImages,
+          images: uploadedUrls,
           features: _selectedFeatures.toList(),
           amenities: _selectedAmenities.toList(),
           createdAt: DateTime.now(),
@@ -165,6 +210,7 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
         title: Text(_isEditing ? 'Edit Apartment' : 'Add New Apartment'),
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(20.0),
         child: Form(
           key: _formKey,
@@ -195,7 +241,13 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
                 hint: 'e.g. 15000',
                 prefixIcon: Icons.attach_money,
                 keyboardType: TextInputType.number,
-                validator: (val) => val == null || val.trim().isEmpty ? 'Enter monthly rent' : null,
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Enter monthly rent';
+                  final clean = val.replaceAll(',', '').replaceAll('৳', '').replaceAll('\$', '').replaceAll(' ', '').trim();
+                  final parsed = num.tryParse(clean);
+                  if (parsed == null || parsed <= 0) return 'Enter a valid rent amount (e.g. 15000)';
+                  return null;
+                },
               ),
               const SizedBox(height: 14),
 
@@ -221,11 +273,11 @@ class _AddEditApartmentScreenState extends State<AddEditApartmentScreen> {
 
               CustomTextField(
                 controller: _descController,
-                label: 'Description',
+                label: 'Description (Optional)',
                 hint: 'Overview and notes about this apartment...',
                 prefixIcon: Icons.description_outlined,
                 maxLines: 3,
-                validator: (val) => val == null || val.trim().isEmpty ? 'Enter a description' : null,
+                validator: null,
               ),
               const SizedBox(height: 18),
 

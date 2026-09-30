@@ -157,6 +157,11 @@ class MyRentalRequestsScreen extends StatelessWidget {
               Text('Submitted: $dateStr', style: const TextStyle(fontSize: 13, color: Color(0xFF7A7E79))),
               const SizedBox(height: 8),
               Text('Landlord ID: ${req.landlordId}', style: const TextStyle(fontSize: 12, color: Color(0xFF7A7E79))),
+              if (req.preferredMoveInDate != null) ...[
+                const SizedBox(height: 8),
+                Text('Preferred Move-in: ${DateFormat('MMMM d, yyyy').format(req.preferredMoveInDate!)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D2330))),
+              ],
               if (req.message != null && req.message!.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 Container(
@@ -174,19 +179,49 @@ class MyRentalRequestsScreen extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1D2330),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1D2330),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: const Text('Close Details', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
                   ),
-                  child: const Text('Close Details', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () async {
+                      try {
+                        await RentalRequestService().hideRequest(req.id);
+                        if (context.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Request removed from history.')),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.toString())),
+                          );
+                        }
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded, size: 20),
+                  ),
+                ],
               ),
             ],
           ),

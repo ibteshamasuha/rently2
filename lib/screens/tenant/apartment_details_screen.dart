@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/apartment_model.dart';
 import '../../models/apartment_query_model.dart';
+import '../../models/rental_request_model.dart';
 import '../../models/user_model.dart';
 import '../../services/apartment_query_service.dart';
 import '../../services/apartment_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/rental_request_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/apartment_image_widget.dart';
 import 'rental_request_screen.dart';
@@ -323,6 +326,76 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
                         ],
                       ),
                     ),
+
+                    // Landlord Information Card
+                    if (apt.landlordId.isNotEmpty)
+                      FutureBuilder<UserModel?>(
+                        future: AuthService().getUserModel(apt.landlordId),
+                        builder: (context, landlordSnap) {
+                          final landlord = landlordSnap.data;
+                          return Container(
+                            margin: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: GenXPalette.cameoWhite),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: GenXPalette.midnightBlue.withValues(alpha: 0.08),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.person_outline_rounded, size: 20, color: GenXPalette.midnightBlue),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Owned / Managed by',
+                                        style: TextStyle(fontSize: 11, color: GenXPalette.textMuted),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        landlord != null && landlord.name.isNotEmpty
+                                            ? landlord.name
+                                            : 'Landlord',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: GenXPalette.textDark,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: GenXPalette.midnightBlue.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    'Landlord',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: GenXPalette.midnightBlue,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
                   ],
                 ),
               ),
@@ -389,28 +462,57 @@ class _ApartmentDetailsScreenState extends State<ApartmentDetailsScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RentalRequestScreen(
-                                  apartment: apt,
-                                  currentUser: widget.currentUser,
-                                ),
+                        child: StreamBuilder<RentalRequestModel?>(
+                          stream: RentalRequestService().streamTenantRequestForApartment(
+                            tenantId: widget.currentUser.uid,
+                            apartmentId: apt.id,
+                          ),
+                          builder: (context, reqSnap) {
+                            final existingReq = reqSnap.data;
+                            final bool hasExisting = existingReq != null;
+                            final bool isButtonDisabled = apt.isRented || hasExisting;
+
+                            String buttonLabel = 'Request Rental';
+                            if (apt.isRented) {
+                              buttonLabel = 'Currently Occupied';
+                            } else if (hasExisting) {
+                              if (existingReq.status == 'rejected') {
+                                buttonLabel = 'Request Rejected';
+                              } else if (existingReq.status == 'approved') {
+                                buttonLabel = 'Request Approved';
+                              } else {
+                                buttonLabel = 'Request Pending';
+                              }
+                            }
+
+                            return ElevatedButton(
+                              onPressed: isButtonDisabled
+                                  ? null
+                                  : () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => RentalRequestScreen(
+                                            apartment: apt,
+                                            currentUser: widget.currentUser,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isButtonDisabled ? Colors.grey.shade400 : GenXPalette.midnightBlue,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.grey.shade300,
+                                disabledForegroundColor: Colors.grey.shade600,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: Text(
+                                buttonLabel,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                             );
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: GenXPalette.midnightBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: const Text(
-                            'Request Rental',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
                         ),
                       ),
                     ],

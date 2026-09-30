@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/apartment_model.dart';
+import '../../models/rental_request_model.dart';
 import '../../models/user_model.dart';
 import '../../services/rental_request_service.dart';
 import '../../theme/app_theme.dart';
@@ -24,6 +25,23 @@ class _RentalRequestScreenState extends State<RentalRequestScreen> {
   final _requestService = RentalRequestService();
   DateTime? _selectedDate;
   bool _isSubmitting = false;
+  RentalRequestModel? _existingRequest;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingRequest();
+  }
+
+  Future<void> _checkExistingRequest() async {
+    final req = await _requestService.getTenantRequestForApartment(
+      tenantId: widget.currentUser.uid,
+      apartmentId: widget.apartment.id,
+    );
+    if (mounted) {
+      setState(() => _existingRequest = req);
+    }
+  }
 
   @override
   void dispose() {
@@ -59,6 +77,16 @@ class _RentalRequestScreenState extends State<RentalRequestScreen> {
   }
 
   Future<void> _handleSubmit() async {
+    if (_existingRequest != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You have already submitted a rental request for this apartment.'),
+          backgroundColor: GenXPalette.danger,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -71,6 +99,7 @@ class _RentalRequestScreenState extends State<RentalRequestScreen> {
         message: _messageController.text.trim(),
         apartmentTitle: widget.apartment.title,
         tenantName: widget.currentUser.name,
+        preferredMoveInDate: _selectedDate,
       );
 
       if (!mounted) return;
@@ -268,14 +297,62 @@ class _RentalRequestScreenState extends State<RentalRequestScreen> {
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 30),
+
+              if (_existingRequest != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _existingRequest!.status == 'rejected'
+                        ? GenXPalette.danger.withValues(alpha: 0.08)
+                        : GenXPalette.warning.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _existingRequest!.status == 'rejected'
+                          ? GenXPalette.danger.withValues(alpha: 0.3)
+                          : GenXPalette.warning.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _existingRequest!.status == 'rejected'
+                            ? Icons.cancel_outlined
+                            : Icons.info_outline_rounded,
+                        color: _existingRequest!.status == 'rejected'
+                            ? GenXPalette.danger
+                            : GenXPalette.warning,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _existingRequest!.status == 'rejected'
+                              ? 'Your rental request for this apartment was declined. Re-submission is not allowed.'
+                              : 'You have already submitted a rental request for this apartment (${_existingRequest!.status.toUpperCase()}).',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _existingRequest!.status == 'rejected'
+                                ? GenXPalette.danger
+                                : GenXPalette.textDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // Submit Request Button (Picture 1 Screen 10)
               ElevatedButton(
-                onPressed: _isSubmitting ? null : _handleSubmit,
+                onPressed: (_isSubmitting || _existingRequest != null) ? null : _handleSubmit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: GenXPalette.midnightBlue,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  disabledForegroundColor: Colors.grey.shade600,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
@@ -285,9 +362,15 @@ class _RentalRequestScreenState extends State<RentalRequestScreen> {
                         width: 22,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text(
-                        'Submit Request',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    : Text(
+                        _existingRequest != null
+                            ? (_existingRequest!.status == 'rejected'
+                                ? 'Request Rejected'
+                                : (_existingRequest!.status == 'approved'
+                                    ? 'Request Approved'
+                                    : 'Request Already Submitted'))
+                            : 'Submit Request',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
               ),
             ],

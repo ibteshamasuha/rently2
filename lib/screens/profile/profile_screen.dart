@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
+import '../../models/apartment_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/apartment_service.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_wrapper.dart';
 import '../landlord/landlord_maintenance_screen.dart';
@@ -530,6 +532,8 @@ class ProfileScreen extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 24),
+                
+                _buildApartmentsSection(context, currentUser),
 
                 // Role-aware Menu Items List (Issue 11)
                 Container(
@@ -771,6 +775,134 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildApartmentsSection(BuildContext context, UserModel currentUser) {
+    final apartmentService = ApartmentService();
+    final isLandlord = currentUser.role == 'landlord' || currentUser.role == 'both';
+    final stream = isLandlord 
+        ? apartmentService.getLandlordApartments(currentUser.uid)
+        : apartmentService.getTenantApartments(currentUser.uid);
+        
+    return StreamBuilder<List<ApartmentModel>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: CircularProgressIndicator(),
+          ));
+        }
+        
+        var apartments = snapshot.data ?? [];
+        if (isLandlord) {
+          apartments = apartments.where((a) => a.isRented && a.currentTenantId != null && a.currentTenantId!.isNotEmpty).toList();
+        }
+        
+        final title = isLandlord ? 'Occupied Apartments' : 'Current Apartment';
+        final emptyMsg = isLandlord ? 'You have no currently occupied apartments.' : 'You do not have a current apartment.';
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: GenXPalette.textDark,
+                  ),
+                ),
+              ),
+            ),
+            if (apartments.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: GenXPalette.cameoWhite),
+                ),
+                child: Text(
+                  emptyMsg,
+                  style: const TextStyle(color: GenXPalette.textMuted, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              )
+            else
+              ...apartments.map((apt) => Card(
+                    elevation: 0,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: const BorderSide(color: GenXPalette.cameoWhite),
+                    ),
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: GenXPalette.midnightBlue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.apartment_rounded, color: GenXPalette.midnightBlue),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  apt.title,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: GenXPalette.textDark),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.location_on_outlined, size: 12, color: GenXPalette.textMuted),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        apt.location,
+                                        style: const TextStyle(fontSize: 12, color: GenXPalette.textMuted),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '\$${apt.rent}/month',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: GenXPalette.midnightBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
     );
   }
 }
